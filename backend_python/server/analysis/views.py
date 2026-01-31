@@ -88,6 +88,7 @@ class AnalyzeTwitterView(APIView):
             account_age_days = (
                 datetime.now(timezone.utc) - account_created
             ).days
+        tweets_per_days = dashboard_data.get("visual_metrics", {}).get("posts_per_day", 0)
         else:
             account_age_days = 0
 
@@ -115,10 +116,10 @@ class AnalyzeTwitterView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
-        cleaned_user_data = clean_user_features(profile_api_response)
+        cleaned_user_data = clean_user_features(profile_api_response, tweets_per_days)
         cleaned_tweets_data = clean_tweets_api_response(tweets_api_response)
-        # print("Cleaned User Data:", cleaned_user_data)
-        # print("Cleaned Tweets Data:", cleaned_tweets_data)
+        # # print("Cleaned User Data:", cleaned_user_data)
+        # # print("Cleaned Tweets Data:", cleaned_tweets_data)
         dashboard_data['behavior_scores']
         
         parent_dir = os.path.dirname(settings.BASE_DIR)

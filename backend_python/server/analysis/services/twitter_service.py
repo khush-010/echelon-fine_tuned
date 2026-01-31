@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import requests
 from django.conf import settings
 
@@ -48,7 +49,7 @@ def fetch_user_tweets(user_id,count=50):
     except requests.RequestException:
         return None
 
-def clean_user_features(api_response, target=None):
+def clean_user_features(api_response, tweets_per_days):
     """
     Extract and transform required features
     to exactly match ML model expectations.
@@ -88,16 +89,24 @@ def clean_user_features(api_response, target=None):
         }
 
         lang_num = lang_map.get(legacy.get("lang"), 0)
-
+        created_at_str = api_response["result"]["data"]["user"]["result"]["core"]["created_at"]
+        account_created = datetime.strptime(
+            created_at_str,
+            "%a %b %d %H:%M:%S %z %Y"
+        )
+        account_age_days = (datetime.now(timezone.utc) - account_created).days
+        followers_count = safe_int(legacy.get("followers_count"))
+        friends_count = safe_int(legacy.get("friends_count"))
+        ff_ratio = (followers_count / (friends_count + 1)) 
+        
         # -------------------------------
         # Final Ordered Features
         # -------------------------------
         cleaned_data = {
-            "id": safe_int(user.get("rest_id")),
             "favourites_count": safe_int(legacy.get("favourites_count")),
-            "followers_count": safe_int(legacy.get("followers_count")),
+            "followers_count": followers_count,
             "statuses_count": safe_int(legacy.get("statuses_count")),
-            "friends_count": safe_int(legacy.get("friends_count")),
+            "friends_count": friends_count,
             "default_profile": bool_to_int(legacy.get("default_profile")),
             "default_profile_image": bool_to_int(legacy.get("default_profile_image")),
             "profile_use_background_image": bool_to_int(
@@ -107,10 +116,12 @@ def clean_user_features(api_response, target=None):
             "listed_count": safe_int(legacy.get("listed_count")),
             "geo_enabled": bool_to_int(legacy.get("geo_enabled")),
             "lang_num": lang_num,
+            "account_age_days": safe_int(account_age_days),
+            "tweets_per_days": safe_int(tweets_per_days),
+            "ff_ratio": ff_ratio,
         }
         
         cleaned_array = [[
-            cleaned_data["id"],
             cleaned_data["favourites_count"],
             cleaned_data["followers_count"],
             cleaned_data["statuses_count"],
@@ -122,6 +133,9 @@ def clean_user_features(api_response, target=None):
             cleaned_data["listed_count"],
             cleaned_data["geo_enabled"],
             cleaned_data["lang_num"],
+            cleaned_data["account_age_days"],
+            cleaned_data["tweets_per_days"],
+            cleaned_data["ff_ratio"],
         ]]
         
         
