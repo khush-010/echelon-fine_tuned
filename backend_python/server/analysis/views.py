@@ -8,6 +8,7 @@ from .services.ai_service import generate_response
 import pickle
 import os
 from django.conf import settings
+from datetime import datetime, timezonefrom 
 from tensorflow.keras.models import load_model 
 import joblib
 import tensorflow as tf
@@ -43,14 +44,15 @@ class AnalyzeTwitterView(APIView):
                 {"error": "Username is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
         # profile_api_response = fetch_twitter_user(username)
-        # print("API Response:", profile_api_response)
-        # user_id = profile_api_response["result"]["data"]["user"]["result"]["rest_id"]
+        # print("Profile API Response:", profile_api_response)
+        user_id = profile_api_response["result"]["data"]["user"]["result"]["rest_id"]
 
 
         # tweets_api_response = fetch_user_tweets(user_id, count=100)
         
-        # BASE_DIR = settings.BASE_DIR
+        BASE_DIR = settings.BASE_DIR
 
         file_path = os.path.join(BASE_DIR, "analysis", "response.json")
 
@@ -72,6 +74,16 @@ class AnalyzeTwitterView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
         dashboard_data = aggregate_twitter_data(tweets_api_response)
+        created_at_str = profile_api_response["result"]["data"]["user"]["result"]["core"]["created_at"]
+
+        account_created = datetime.strptime(
+            created_at_str,
+            "%a %b %d %H:%M:%S %z %Y"
+        )
+
+        dashboard_data["account_age_days"] = (
+            datetime.now(timezone.utc) - account_created
+        ).days
         if not dashboard_data:
             return Response(
                 {"error": "Failed to process user data"},
@@ -87,7 +99,7 @@ class AnalyzeTwitterView(APIView):
         parent_dir = os.path.dirname(settings.BASE_DIR)
         model_path = os.path.join(parent_dir, 'profile_classifier.pkl')
 
-        print("Model Path: ", model_path)
+        # print("Model Path: ", model_path)
         with open(model_path, 'rb') as f:
             profile_classifier = pickle.load(f)
 

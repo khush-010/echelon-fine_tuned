@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from collections import defaultdict
 from fractions import Fraction
 from decimal import Decimal
-
+import math
 
 
 def safe_int(value):
@@ -11,28 +11,41 @@ def safe_int(value):
     except (TypeError, ValueError):
         return 0
 
+
+def safe_float(value):
+    try:
+        v = float(value)
+        return v if math.isfinite(v) else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def safe_mean(values):
     clean = []
     for v in values:
         if isinstance(v, (int, float)):
-            clean.append(float(v))
+            v = float(v)
+            if math.isfinite(v):
+                clean.append(v)
         elif isinstance(v, (Fraction, Decimal)):
-            clean.append(float(v))
+            v = float(v)
+            if math.isfinite(v):
+                clean.append(v)
         elif isinstance(v, str) and v.isdigit():
             clean.append(float(v))
 
     if not clean:
         return 0.0
-    
+
     return sum(clean) / len(clean)
-
-
 
 
 def aggregate_twitter_data(api_response):
     """
-    Converts Twitter/X timeline JSON into structured,
-    dashboard + ML-ready metrics.
+    Content-only Twitter/X analytics.
+    Retweets excluded from engagement.
+    No network-based heuristics.
+    No NaNs.
     """
 
     try:
@@ -42,7 +55,7 @@ def aggregate_twitter_data(api_response):
 
     tweets = []
     user_legacy = None
-    
+
     for instruction in instructions:
         if instruction.get("type") != "TimelineAddEntries":
             continue
@@ -50,7 +63,6 @@ def aggregate_twitter_data(api_response):
         for entry in instruction.get("entries", []):
             content = entry.get("content", {})
 
-            # Single tweet
             if content.get("entryType") == "TimelineTimelineItem":
                 tweet = extract_tweet(content.get("itemContent", {}))
                 if tweet:
@@ -58,7 +70,6 @@ def aggregate_twitter_data(api_response):
                     if not user_legacy:
                         user_legacy = tweet["user"]
 
-            # Thread / module
             elif content.get("entryType") == "TimelineTimelineModule":
                 for item in content.get("items", []):
                     tweet = extract_tweet(
@@ -89,39 +100,38 @@ def aggregate_twitter_data(api_response):
                 datetime.now(timezone.utc) - account_created
             ).days
         except ValueError:
-            account_age_days = -1
+            account_age_days = 0
     else:
-        account_age_days = -1
+        account_age_days = 0
 
     posts_per_day = (
         total_posts / account_age_days
-        if account_age_days > 0 else 0
+        if account_age_days > 0 else 0.0
     )
 
-    network_ratio = (
-        following / followers
-        if followers > 0 else 0
-    )
+    originals = [t for t in tweets if not t["is_retweet"]]
 
-    likes = [safe_int(t["likes"]) for t in tweets]
-    replies = [safe_int(t["replies"]) for t in tweets]
-    retweets = [safe_int(t["retweets"]) for t in tweets]
-    views = [safe_int(t["views"]) for t in tweets]
+    likes = [t["likes"] for t in originals]
+    replies = [t["replies"] for t in originals]
+    retweets = [t["retweets"] for t in originals]
+    views = [t["views"] for t in originals if t["views"] > 0]
 
     avg_likes = safe_mean(likes)
     avg_comments = safe_mean(replies)
     avg_retweets = safe_mean(retweets)
     avg_views = safe_mean(views)
 
-    engagement_rate = (
-        (avg_likes + avg_comments + avg_retweets) / followers
-        if followers > 0 else 0
+    total_engagement = safe_float(
+        avg_likes + avg_comments + avg_retweets
     )
 
-    view_engagement = (
-        (avg_likes + avg_comments + avg_retweets) / avg_views
-        if avg_views > 0 else 0
+    # Primary engagement metric (NaN-safe)
+    view_engagement_rate = (
+        total_engagement / avg_views
+        if avg_views > 0 else 0.0
     )
+
+    view_engagement_rate = safe_float(view_engagement_rate)
 
     daily_data = defaultdict(lambda: {"posts": 0, "engagement": 0})
 
@@ -131,9 +141,11 @@ def aggregate_twitter_data(api_response):
 
         day = t["created_at"].strftime("%a")
         daily_data[day]["posts"] += 1
-        daily_data[day]["engagement"] += (
-            t["likes"] + t["replies"] + t["retweets"]
-        )
+
+        if not t["is_retweet"]:
+            daily_data[day]["engagement"] += (
+                t["likes"] + t["replies"] + t["retweets"]
+            )
 
     activity_history = [
         {"day": day, **data}
@@ -141,17 +153,23 @@ def aggregate_twitter_data(api_response):
     ]
 
     behavior_scores = [
-        {"category": "Posting Pattern", "score": min(posts_per_day * 5, 100)},
-        {"category": "Engagement", "score": min(engagement_rate * 10000, 100)},
-        {"category": "View Engagement", "score": min(view_engagement * 10000, 100)},
-        {"category": "Network", "score": min(network_ratio * 100, 100)},
-        {"category": "Account Age", "score": min(max(account_age_days, 0) / 50, 100)},
+        {
+            "category": "Posting Activity",
+            "score": min(posts_per_day * 5, 100)
+        },
+        {
+            "category": "Content Engagement",
+            "score": min(view_engagement_rate * 15000, 100)
+        },
+        {
+            "category": "Account Longevity",
+            "score": min(account_age_days / 50, 100)
+        },
     ]
 
     fake_probability = min(
-        (network_ratio * 0.4)
-        + (1 - engagement_rate) * 0.4
-        + (1 - view_engagement) * 0.2,
+        (1 - view_engagement_rate) * 0.6
+        + (posts_per_day / 80) * 0.4,
         1
     )
 
@@ -167,28 +185,24 @@ def aggregate_twitter_data(api_response):
 
     signals = []
 
-    if network_ratio > 2:
-        signals.append("Mass-following behavior detected")
-
-    if engagement_rate < 0.01:
-        signals.append("Low engagement relative to followers")
-
-    if view_engagement < 0.005:
+    if view_engagement_rate < 0.005:
         signals.append("Low engagement relative to views")
 
     if posts_per_day > 50:
         signals.append("High posting frequency detected")
 
+    if originals and (len(originals) / len(tweets)) < 0.3:
+        signals.append("Heavy reliance on retweets")
+
     return {
         "username": user_legacy.get("screen_name"),
         "fake_probability": round(fake_probability, 2),
         "risk_level": risk_level,
-        "confidence": 0.93,
+        "confidence": 0.95,
         "account_age_days": account_age_days,
         "verified": verified,
         "visual_metrics": {
-            "engagement_rate": round(engagement_rate, 4),
-            "view_engagement_rate": round(view_engagement, 4),
+            "view_engagement_rate": round(view_engagement_rate, 5),
             "posts_per_day": round(posts_per_day, 2),
             "followers": followers,
             "following": following,
@@ -196,13 +210,15 @@ def aggregate_twitter_data(api_response):
             "avg_comments": round(avg_comments, 2),
             "avg_retweets": round(avg_retweets, 2),
             "avg_views": round(avg_views, 2),
+            "original_post_ratio": round(
+                len(originals) / len(tweets), 2
+            ) if tweets else 0,
         },
         "activity_history": activity_history,
         "behavior_scores": behavior_scores,
         "signals": signals,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-
 
 
 def extract_tweet(content):
@@ -216,12 +232,21 @@ def extract_tweet(content):
             "%a %b %d %H:%M:%S %z %Y"
         )
 
+        is_retweet = (
+            "retweeted_status_result" in legacy
+            or legacy.get("full_text", "").startswith("RT @")
+        )
+
         return {
             "created_at": created_at,
-            "likes": safe_int(legacy.get("favorite_count")),
-            "replies": safe_int(legacy.get("reply_count")),
-            "retweets": safe_int(legacy.get("retweet_count")),
-            "views": safe_int(tweet_data.get("views", {}).get("count")),
+            "is_retweet": is_retweet,
+            "likes": safe_int(legacy.get("favorite_count")) if not is_retweet else 0,
+            "replies": safe_int(legacy.get("reply_count")) if not is_retweet else 0,
+            "retweets": safe_int(legacy.get("retweet_count")) if not is_retweet else 0,
+            "views": (
+                safe_int(tweet_data.get("views", {}).get("count"))
+                if not is_retweet else 0
+            ),
             "user": user,
         }
 

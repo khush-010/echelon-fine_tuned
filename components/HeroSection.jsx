@@ -1,0 +1,292 @@
+"use client";
+import { useState } from "react";
+import { Loader2, TrendingUp, Users, Activity, AlertTriangle, ShieldCheck, Search, ArrowLeft, BarChart3, Globe, Target, Clock, MessageSquare, Eye, UserCheck, Heart, Repeat } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
+
+function copyToClipboard(text) {
+  if (!text) return;
+  navigator.clipboard.writeText(JSON.stringify(text))
+    .then(() => { console.log("Copied to clipboard"); })
+    .catch(err => { console.error("Failed to copy:", err); });
+}
+
+export default function BotDetectorApp() {
+  const [username, setUsername] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+
+  const handleAnalyze = async () => {
+    if (!username.trim()) return;
+    setIsLoading(true);
+    setError("");
+    try {
+      const res = await fetch('http://localhost:8000/api/analyze-twitter/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username }),
+      });
+      if (!res.ok) throw new Error('Analysis failed');
+      const data = await res.json();
+      setResult(data);
+    } catch (err) {
+      setError("Analysis failed. Please try again or check the username.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const resetSearch = () => {
+    setResult(null);
+    setUsername("");
+    setError("");
+  };
+
+  const getRiskColor = (level) => {
+    switch(level?.toLowerCase()) {
+      case 'high': return { bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-200' };
+      case 'medium': return { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200' };
+      case 'low': return { bg: 'bg-green-50', text: 'text-green-600', border: 'border-green-200' };
+      default: return { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200' };
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-slate-900 font-sans">
+      <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-xl border-b border-slate-200/50 z-50 shadow-sm">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-gradient-to-br from-indigo-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+              <ShieldCheck className="text-white" size={20} strokeWidth={2.5} />
+            </div>
+            <span className="font-black tracking-tight text-xl bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
+              Verify.ai
+            </span>
+          </div>
+        </div>
+      </nav>
+
+      <main className="pt-24 pb-20 px-6">
+        {!result ? (
+          <div className="max-w-3xl mx-auto">
+            <div className="text-center space-y-6 mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full text-sm font-bold">
+                <Target size={16} /> <span>AI-Powered Bot Detection</span>
+              </div>
+              <h1 className="text-6xl md:text-7xl font-black tracking-tighter">
+                Unmask the <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 bg-clip-text text-transparent">Bots.</span>
+              </h1>
+              <p className="text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed font-medium">
+                Enterprise-grade behavioral analysis for social accounts. Detect automation and suspicious activity in seconds.
+              </p>
+            </div>
+
+            <div className="bg-white rounded-3xl shadow-2xl shadow-indigo-100/50 border border-slate-200/50 p-8 md:p-12 backdrop-blur-xl animate-in fade-in slide-in-from-bottom-8 duration-700 delay-150">
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-3">Enter Social Media Handle</label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-5 flex items-center text-slate-400 group-focus-within:text-indigo-600 transition-colors">
+                      <Search size={22} strokeWidth={2.5} />
+                    </div>
+                    <input 
+                      type="text" 
+                      value={username} 
+                      onChange={(e) => setUsername(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && !isLoading && handleAnalyze()}
+                      placeholder="@username or handle" 
+                      className="w-full pl-16 pr-6 py-5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-lg font-medium outline-none focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all placeholder:text-slate-400" 
+                    />
+                  </div>
+                </div>
+                <button onClick={handleAnalyze} disabled={isLoading || !username.trim()} className="w-full py-5 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-2xl font-bold text-lg hover:from-indigo-700 hover:to-blue-700 disabled:from-slate-300 disabled:to-slate-300 transition-all shadow-lg flex items-center justify-center gap-3">
+                  {isLoading ? <><Loader2 className="animate-spin" size={22} /> <span>Analyzing...</span></> : <><ShieldCheck size={22} /> <span>Analyze Account</span></>}
+                </button>
+                {error && <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl"><AlertTriangle size={18} className="text-red-600" /><p className="text-red-600 font-semibold text-sm">{error}</p></div>}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="max-w-7xl mx-auto space-y-6 animate-in slide-in-from-bottom-8 fade-in duration-700">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
+              <button onClick={resetSearch} className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 hover:text-indigo-600 font-bold text-sm transition-all rounded-xl border border-slate-200 shadow-sm">
+                <ArrowLeft size={16} /> <span>New Analysis</span>
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="text-xs font-bold uppercase tracking-widest text-slate-400">Report ID: {Math.random().toString(36).substring(7).toUpperCase()}</div>
+                <div className="text-xs text-slate-400">{new Date(result.timestamp).toLocaleString()}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-xl p-8">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h2 className="text-4xl font-black text-slate-900">{result.username || username}</h2>
+                    <p className="text-slate-500 font-semibold text-sm mt-2 flex items-center gap-2">
+                      <Clock size={14} /> Account Age: {result.account_age_days === -1 ? "Hidden/Unavailable" : `${result.account_age_days} days`}
+                    </p>
+                  </div>
+                  {/* <div className={`px-5 py-2.5 rounded-full font-black text-xs uppercase tracking-wider border-2 ${getRiskColor(result.risk_level).bg} ${getRiskColor(result.risk_level).text} ${getRiskColor(result.risk_level).border}`}>
+                    {result.risk_level} Risk
+                  </div> */}
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-2xl border border-blue-100">
+                    <p className="text-blue-600 text-xs font-bold uppercase mb-1 flex items-center gap-1"><Users size={12} /> Followers</p>
+                    <p className="text-2xl font-black text-slate-900">{result.visual_metrics.followers.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-4 rounded-2xl border border-purple-100">
+                    <p className="text-purple-600 text-xs font-bold uppercase mb-1 flex items-center gap-1"><Users size={12} /> Following</p>
+                    <p className="text-2xl font-black text-slate-900">{result.visual_metrics.following.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-4 rounded-2xl border border-amber-100">
+                    <p className="text-amber-600 text-xs font-bold uppercase mb-1 flex items-center gap-1"><MessageSquare size={12} /> Avg Likes</p>
+                    <p className="text-2xl font-black text-slate-900">{Math.round(result.visual_metrics.avg_likes).toLocaleString()}</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-red-50 to-rose-50 p-4 rounded-2xl border border-red-100">
+                    <p className="text-red-600 text-xs font-bold uppercase mb-1 flex items-center gap-1"><Target size={12} /> Bot Score</p>
+                    <p className="text-2xl font-black text-slate-900">{(result.fake_probability * 100).toFixed(0)}%</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-slate-100">
+                  <div>
+                    <p className="text-slate-500 text-xs font-bold mb-1">Engagement Rate</p>
+                    <p className="text-lg font-black">{(result.visual_metrics.engagement_rate * 100).toFixed(3)}%</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-xs font-bold mb-1">Avg Retweets</p>
+                    <p className="text-lg font-black">{Math.round(result.visual_metrics.avg_retweets).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-xs font-bold mb-1">Avg Views</p>
+                    <p className="text-lg font-black">{result.visual_metrics.avg_views > 1000000 ? `${(result.visual_metrics.avg_views / 1000000).toFixed(1)}M` : Math.round(result.visual_metrics.avg_views).toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-indigo-600 to-blue-600 rounded-3xl p-8 text-white shadow-xl flex flex-col justify-center items-center text-center">
+                <div className="relative w-36 h-36 flex items-center justify-center">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle cx="72" cy="72" r="64" stroke="currentColor" strokeWidth="14" fill="transparent" className="text-indigo-800/30" />
+                    <circle cx="72" cy="72" r="64" stroke="currentColor" strokeWidth="14" fill="transparent" strokeDasharray={402} strokeDashoffset={402 - (402 * result.confidence)} className="text-white transition-all duration-1000" strokeLinecap="round" />
+                  </svg>
+                  <span className="absolute text-3xl font-black">{Math.round(result.confidence * 100)}%</span>
+                </div>
+                <p className="mt-5 font-black text-lg">Confidence Score</p>
+                <p className="text-indigo-200 text-sm mt-2 px-6">Based on {result.behavior_scores.length} behavioral metrics and pattern consistency.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-xl p-8">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2"><Activity size={20} className="text-indigo-600" /><h3 className="font-black text-lg">Weekly Posting Volume</h3></div>
+                </div>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={result.activity_history}>
+                      <defs>
+                        <linearGradient id="colorPosts" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.3}/><stop offset="95%" stopColor="#4F46E5" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                      <XAxis dataKey="day" axisLine={false} tickLine={false} fontSize={12} fontWeight={600} tick={{fill: '#94A3B8'}} />
+                      <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', fontWeight: 'bold', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }} />
+                      <Area type="monotone" dataKey="posts" stroke="#4F46E5" strokeWidth={3} fillOpacity={1} fill="url(#colorPosts)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-xl p-8">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2"><Target size={20} className="text-indigo-600" /><h3 className="font-black text-lg">Behavior Analysis</h3></div>
+                </div>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart data={result.behavior_scores}>
+                      <PolarGrid stroke="#E2E8F0" />
+                      <PolarAngleAxis dataKey="category" tick={{fill: '#64748B', fontSize: 11, fontWeight: 600}} />
+                      <PolarRadiusAxis angle={90} domain={[0, 100]} />
+                      <Radar name="Score" dataKey="score" stroke="#4F46E5" fill="#4F46E5" fillOpacity={0.6} strokeWidth={2} />
+                      <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontWeight: 'bold' }} />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-xl p-8">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2"><Users size={20} className="text-indigo-600" /><h3 className="font-black text-lg">Network Scale</h3></div>
+                </div>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={[{ name: 'Followers', value: result.visual_metrics.followers }, { name: 'Following', value: result.visual_metrics.following }]}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={12} fontWeight={600} />
+                      <YAxis axisLine={false} tickLine={false} fontSize={11} />
+                      <Tooltip cursor={{fill: '#F8FAFC'}} contentStyle={{ borderRadius: '16px', border: 'none' }} />
+                      <Bar dataKey="value" radius={[12, 12, 0, 0]} barSize={80}>
+                        <Cell fill="#4F46E5" /><Cell fill="#EC4899" />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-xl p-8">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2"><TrendingUp size={20} className="text-indigo-600" /><h3 className="font-black text-lg">Engagement Intensity</h3></div>
+                </div>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={result.activity_history}>
+                      <defs>
+                        <linearGradient id="colorEngagement" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#EC4899" stopOpacity={0.3}/><stop offset="95%" stopColor="#EC4899" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                      <XAxis dataKey="day" axisLine={false} tickLine={false} fontSize={12} fontWeight={600} />
+                      <Tooltip contentStyle={{ borderRadius: '16px', border: 'none' }} />
+                      <Area type="monotone" dataKey="engagement" stroke="#EC4899" strokeWidth={3} fillOpacity={1} fill="url(#colorEngagement)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-red-50 to-orange-50 border-2 border-red-200 rounded-3xl p-8 shadow-xl">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
+                  <AlertTriangle size={20} className="text-red-600" />
+                </div>
+                <h3 className="font-black text-xl text-red-900">Anomalies Detected</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {result.signals.map((signal, i) => (
+                  <div key={i} className="flex items-start gap-3 bg-white p-5 rounded-2xl border-2 border-red-100 shadow-sm">
+                    <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center shrink-0">
+                      <Eye size={16} className="text-amber-600" />
+                    </div>
+                    <div><span className="text-sm font-bold text-slate-800 leading-relaxed">{signal}</span></div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-6 p-5 bg-white rounded-2xl border-2 border-amber-200">
+                <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <AlertTriangle size={16} className="text-amber-600" />
+                  <span><strong>AI Verdict:</strong> This account has a {Math.round(result.fake_probability * 100)}% bot probability. Engagement rate is lower than expected for an audience of this size.</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
