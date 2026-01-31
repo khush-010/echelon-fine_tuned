@@ -6,7 +6,6 @@ def fetch_twitter_user(username):
     url = "https://twitter241.p.rapidapi.com/user"
 
     querystring = {"username": username}
-    print(settings.RAPIDAPI_KEY, settings.RAPIDAPI_HOST)
     headers = {
         "x-rapidapi-key": settings.RAPIDAPI_KEY,# remove the env variable and directly use the key herex
         "x-rapidapi-host": settings.RAPIDAPI_HOST
