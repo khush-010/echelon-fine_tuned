@@ -40,8 +40,8 @@ export default function BotDetectorApp() {
 
       setResult(data);
       
-      const prob = data.fake_probability;
-      const isBotResult = prob >= 0.5;
+      const prob = data.ml_prediction;
+      const isBotResult = prob > 0.5;
 
       setIsBot(isBotResult);
       setLabel(isBotResult ? "Bot Probability" : "Human Probability");
