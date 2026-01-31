@@ -15,11 +15,12 @@ from .services.twitter_service import (
     fetch_twitter_user,
     fetch_user_tweets,
     clean_user_features,
-    clean_tweets_api_response
+    clean_tweets_api_response,
+    get_followers_username,
 )
 from .services.aggregation import aggregate_twitter_data
 
-
+from services.network_graph import build_follower_graph
 USE_SIMULATION = False
 
 
@@ -197,3 +198,11 @@ class AnalyzeTwitterView(APIView):
         ) 
         print("Final Prediction",dashboard_data["ml_prediction"] )
         return Response(dashboard_data, status=status.HTTP_200_OK)
+
+
+class GetGraphView(APIView):
+    def post(self, request):
+        user_id=request.get("user_id")
+        user_name=request.get("user_name")
+        response=get_followers_username(user_id)
+        return build_follower_graph(response,user_name)

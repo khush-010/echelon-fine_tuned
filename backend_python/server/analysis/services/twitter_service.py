@@ -3,12 +3,13 @@ import requests
 from django.conf import settings
 
 
+
 def fetch_twitter_user(username):
     url = "https://twitter241.p.rapidapi.com/user"
 
     querystring = {"username": username}
     headers = {
-        "x-rapidapi-key": settings.RAPIDAPI_KEY,# remove the env variable and directly use the key herex
+        "x-rapidapi-key": settings.RAPIDAPI_KEY,
         "x-rapidapi-host": settings.RAPIDAPI_HOST
     }
 
@@ -235,3 +236,21 @@ def _extract_tweet_array(tweet: dict) -> list | None:
         num_urls,
         num_mentions,
     ]
+
+
+def get_followers_username(user_id,count=10):
+    url = "https://twitter241.p.rapidapi.com/followers"
+
+    headers = {
+        "x-rapidapi-key": settings.RAPIDAPI_KEY,
+        "x-rapidapi-host": settings.RAPIDAPI_HOST
+    }
+    querystring = {"user":user_id,"count":count}
+    response = requests.get(url, headers=headers,params=querystring)
+    try:
+        if response.status_code != 200:
+            return None
+
+        return response.json()
+    except requests.RequestException:
+        return None
