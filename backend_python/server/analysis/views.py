@@ -60,23 +60,59 @@ class AnalyzeTwitterView(APIView):
                 tweets_api_response = json.load(f)
         else:
             profile_api_response = fetch_twitter_user(username)
-            if not profile_api_response:
+            if profile_api_response==None:
                 return Response(
                     {"error": "Failed to fetch user data"},
                     status=status.HTTP_404_NOT_FOUND
                 )
 
+            if (
+                not profile_api_response
+                or "result" not in profile_api_response
+                or "data" not in profile_api_response["result"]
+                or "user" not in profile_api_response["result"]["data"]
+                or "result" not in profile_api_response["result"]["data"]["user"]
+            ):
+                return Response(
+                    {
+                        "error": "User not found",
+                        "error_code": "USER_NOT_FOUND",
+                        "can_analyze": False
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
             user_result = profile_api_response["result"]["data"]["user"]["result"]
+
+
             user_id = user_result["rest_id"]
 
             tweets_api_response = fetch_user_tweets(user_id, count=100)
-            if not tweets_api_response:
+            if tweets_api_response==None:
                 return Response(
                     {"error": "Failed to fetch user tweets"},
                     status=status.HTTP_404_NOT_FOUND
                 )
 
+        if (
+            not profile_api_response
+            or "result" not in profile_api_response
+            or "data" not in profile_api_response["result"]
+            or "user" not in profile_api_response["result"]["data"]
+            or "result" not in profile_api_response["result"]["data"]["user"]
+        ):
+            return Response(
+                {
+                    "error": "User not found",
+                    "error_code": "USER_NOT_FOUND",
+                    "can_analyze": False
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
         user_result = profile_api_response["result"]["data"]["user"]["result"]
+
+
         created_at_str = user_result["core"].get("created_at")
 
         if created_at_str:
@@ -130,7 +166,8 @@ class AnalyzeTwitterView(APIView):
         profile_prediction = profile_classifier.predict_proba(
             cleaned_user_data
         )[0][0]
-        print("Profile Prediction Model",profile_prediction )           
+        print("Profile Prediction Model",profile_prediction )  
+        profile_prediction=1-profile_prediction         
         tweet_model = load_model(
             os.path.join(parent_dir, "fake_account_model.h5")
         )
@@ -153,7 +190,7 @@ class AnalyzeTwitterView(APIView):
             max_len
         )
         print("Tweet Prediction Model",tweet_prediction )
-        tweet_prediction = 1 - tweet_prediction
+        # tweet_prediction = 1 - tweet_prediction
 
         dashboard_data["ml_prediction"] = (
             0.4*profile_prediction + 0.6*tweet_prediction
