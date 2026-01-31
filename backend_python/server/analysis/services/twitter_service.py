@@ -65,9 +65,6 @@ def clean_user_features(api_response, tweets_per_days):
 
         legacy = user.get("legacy", {})
 
-        # -------------------------------
-        # Helper Converters
-        # -------------------------------
         def bool_to_int(value):
             return 1 if value else 0
 
@@ -77,10 +74,6 @@ def clean_user_features(api_response, tweets_per_days):
             except (TypeError, ValueError):
                 return 0
 
-        # -------------------------------
-        # Language Encoding
-        # IMPORTANT: Must match training
-        # -------------------------------
         lang_map = {
             "en": 1,
             "es": 2,
@@ -99,9 +92,6 @@ def clean_user_features(api_response, tweets_per_days):
         friends_count = safe_int(legacy.get("friends_count"))
         ff_ratio = (followers_count / (friends_count + 1)) 
         
-        # -------------------------------
-        # Final Ordered Features
-        # -------------------------------
         cleaned_data = {
             "favourites_count": safe_int(legacy.get("favourites_count")),
             "followers_count": followers_count,

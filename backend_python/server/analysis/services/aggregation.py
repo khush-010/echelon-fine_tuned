@@ -120,7 +120,6 @@ def aggregate_twitter_data(api_response, account_age_days=None):
     avg_retweets = safe_mean([t["retweets"] for t in originals])
     avg_views = safe_mean([t["views"] for t in originals])
 
-    # ---------- Dynamic Time-Based Activity Timeline ----------
 
     timestamps = [
         t["created_at"]

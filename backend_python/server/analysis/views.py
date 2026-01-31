@@ -10,6 +10,8 @@ import pickle
 import numpy as np
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+import shap
+from server.shap_analysis import predict_with_shap
 
 from .services.twitter_service import (
     fetch_twitter_user,
@@ -24,6 +26,18 @@ USE_SIMULATION = False
 
 
 class AnalyzeTwitterView(APIView):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        parent_dir = os.path.dirname(settings.BASE_DIR)
+        self.tweet_model = load_model(
+            os.path.join(parent_dir, "fake_account_model.h5")
+        )
+    def shap_predict_fn(self, X):
+        max_len = self.tweet_model.input[0].shape[1]
+        X_text = X[:, :max_len].astype(int)
+        X_num  = X[:, max_len:]
+        return self.tweet_model.predict([X_text, X_num])
+
 
     def tweet_prediction(self, cleaned_tweets_data, tokenizer, scaler, tweet_model, max_len):
         total = 0
@@ -131,9 +145,7 @@ class AnalyzeTwitterView(APIView):
             cleaned_user_data
         )[0][0]
         print("Profile Prediction Model",profile_prediction )           
-        tweet_model = load_model(
-            os.path.join(parent_dir, "fake_account_model.h5")
-        )
+        
 
         tokenizer = pickle.load(
             open(os.path.join(parent_dir, "tokenizer.pickle"), "rb")
@@ -143,18 +155,21 @@ class AnalyzeTwitterView(APIView):
             open(os.path.join(parent_dir, "scaler.pickle"), "rb")
         )
 
-        max_len = tweet_model.input[0].shape[1]
+        max_len = self.tweet_model.input[0].shape[1]
 
         tweet_prediction = self.tweet_prediction(
             cleaned_tweets_data,
             tokenizer,
             scaler,
-            tweet_model,
+            self.tweet_model,
             max_len
         )
         print("Tweet Prediction Model",tweet_prediction )
         tweet_prediction = 1 - tweet_prediction
-
+        file_path = os.path.join(parent_dir, "shape_background.npy")
+        background = np.load(file_path)
+        explainer = shap.KernelExplainer(self.shap_predict_fn, background)
+        print(predict_with_shap(0, cleaned_tweets_data, scaler, tokenizer, self.tweet_model, explainer, max_len))
         dashboard_data["ml_prediction"] = (
             0.4*profile_prediction + 0.6*tweet_prediction
         ) 
