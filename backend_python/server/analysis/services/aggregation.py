@@ -108,9 +108,10 @@ def aggregate_twitter_data(api_response, account_age_days=None):
     total_engagement = total_likes + total_replies + total_retweets
 
     view_engagement_rate = (
-        total_engagement / total_views
+        math.log1p(total_engagement) / math.log1p(total_views)
         if total_views > 0 else 0.0
     )
+
 
     view_engagement_rate = safe_float(view_engagement_rate)
 
@@ -169,7 +170,7 @@ def aggregate_twitter_data(api_response, account_age_days=None):
         },
         {
             "category": "Content Engagement",
-            "score": min(view_engagement_rate * 15000, 100)
+            "score": min(view_engagement_rate * 120, 100)
         },
         {
             "category": "Account Longevity",

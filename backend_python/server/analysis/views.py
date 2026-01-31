@@ -2,27 +2,34 @@ from http import HTTPStatus
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-import json
-from .services.twitter_service import fetch_twitter_user, clean_user_features, fetch_user_tweets, clean_tweets_api_response
-from .services.aggregation import aggregate_twitter_data
-from .services.ai_service import generate_response
-import pickle
-import os
+from datetime import datetime, timezone
 from django.conf import settings
-from datetime import datetime, timezone 
-from tensorflow.keras.models import load_model 
-import joblib
-import tensorflow as tf
-from tensorflow.keras.preprocessing.sequence import pad_sequences
+import os
+import json
+import pickle
 import numpy as np
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.sequence import pad_sequences
 
-    
+from .services.twitter_service import (
+    fetch_twitter_user,
+    fetch_user_tweets,
+    clean_user_features,
+    clean_tweets_api_response
+)
+from .services.aggregation import aggregate_twitter_data
+
+
+USE_SIMULATION = False
+
+
 class AnalyzeTwitterView(APIView):
-    
+
     def tweet_prediction(self, cleaned_tweets_data, tokenizer, scaler, tweet_model, max_len):
-        sum = 0
-        count=0
-        for idx in range(min(len(cleaned_tweets_data), 100)):
+        total = 0
+        count = min(len(cleaned_tweets_data), 100)
+
+        for idx in range(count):
             text = cleaned_tweets_data[idx][0]
 
             sequence = tokenizer.texts_to_sequences([text])
@@ -31,14 +38,10 @@ class AnalyzeTwitterView(APIView):
             num_features = np.array([cleaned_tweets_data[idx][1:]])
             num_features = scaler.transform(num_features)
 
-            prediction = tweet_model.predict([text_padded, num_features])
-            sum += prediction
-            
-            count+=1
-            # print("Tweet Model Prediction", prediction)
-            
-        print(count)
-        return sum / min(100, len(cleaned_tweets_data))
+            prediction = tweet_model.predict([text_padded, num_features], verbose=0)
+            total += prediction
+
+        return total / count if count > 0 else 0
 
     def post(self, request):
         username = request.data.get("username")
@@ -49,59 +52,49 @@ class AnalyzeTwitterView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # profile_api_response = fetch_twitter_user(username)
-        # print("Profile API Response:", profile_api_response)
-        user_id = profile_api_response["result"]["data"]["user"]["result"]["rest_id"]
+        if USE_SIMULATION:
+            base_dir = settings.BASE_DIR
+            with open(os.path.join(base_dir, "analysis", "response.json")) as f:
+                profile_api_response = json.load(f)
+            with open(os.path.join(base_dir, "analysis", "services", "data.json")) as f:
+                tweets_api_response = json.load(f)
+        else:
+            profile_api_response = fetch_twitter_user(username)
+            if not profile_api_response:
+                return Response(
+                    {"error": "Failed to fetch user data"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
+            user_result = profile_api_response["result"]["data"]["user"]["result"]
+            user_id = user_result["rest_id"]
 
-        # tweets_api_response = fetch_user_tweets(user_id, count=100)
-        
-        BASE_DIR = settings.BASE_DIR
+            tweets_api_response = fetch_user_tweets(user_id, count=100)
+            if not tweets_api_response:
+                return Response(
+                    {"error": "Failed to fetch user tweets"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
-        file_path = os.path.join(BASE_DIR, "analysis", "response.json")
+        user_result = profile_api_response["result"]["data"]["user"]["result"]
+        created_at_str = user_result["core"].get("created_at")
 
-        with open(file_path, "r") as f:
-            profile_api_response = json.load(f)
-            
-        tweets_file = os.path.join(BASE_DIR, "analysis", "services", "data.json")
-        with open(tweets_file, "r", encoding="utf-8") as f:
-            tweets_api_response = json.load(f)
-        
-        if not profile_api_response:
-            return Response(
-                {"error": "Failed to fetch user data"},
-                status=status.HTTP_404_NOT_FOUND
+        if created_at_str:
+            created_at = datetime.strptime(
+                created_at_str,
+                "%a %b %d %H:%M:%S %z %Y"
             )
+            account_age_days = (
+                datetime.now(timezone.utc) - created_at
+            ).days
+        else:
+            account_age_days = 0
 
-        # ✅ FIX: extract user_id AFTER loading profile_api_response
-        try:
-            user_id = profile_api_response["result"]["data"]["user"]["result"]["rest_id"]
-        except KeyError:
-            return Response(
-                {"error": "Invalid profile API response structure"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        tweets_api_response = fetch_user_tweets(user_id, count=100)
-        # tweets_file = os.path.join(BASE_DIR, "analysis", "services", "data.json")
-        # with open(tweets_file, "r", encoding="utf-8") as f:
-        #     tweets_api_response = json.load(f)
-
-        if not tweets_api_response:
-            return Response(
-                {"error": "Failed to fetch user tweets"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        dashboard_data = aggregate_twitter_data(tweets_api_response)
-        created_at_str = profile_api_response["result"]["data"]["user"]["result"]["core"]["created_at"]
-
-        account_created = datetime.strptime(
-            created_at_str,
-            "%a %b %d %H:%M:%S %z %Y"
+        dashboard_data = aggregate_twitter_data(
+            tweets_api_response,
+            account_age_days=account_age_days
         )
 
-        dashboard_data["account_age_days"] = (
-            datetime.now(timezone.utc) - account_created
-        ).days
         if not dashboard_data:
             return Response(
                 {
@@ -112,38 +105,58 @@ class AnalyzeTwitterView(APIView):
                 status=HTTPStatus.UNPROCESSABLE_ENTITY
             )
 
-        cleaned_user_data = clean_user_features(profile_api_response)
-        cleaned_tweets_data = clean_tweets_api_response(tweets_api_response)
-        print("Cleaned User Data:", cleaned_user_data)
-        print("Cleaned Tweets Data:", cleaned_tweets_data)
-        
-        
-        parent_dir = os.path.dirname(settings.BASE_DIR)
-        model_path = os.path.join(parent_dir, 'profile_classifier.pkl')
+        dashboard_data["profile_url"] = (
+            user_result.get("avatar", {}).get("image_url")
+        )
 
-        with open(model_path, 'rb') as f:
+        tweets_per_day = dashboard_data.get(
+            "visual_metrics", {}
+        ).get("posts_per_day", 0)
+
+        cleaned_user_data = clean_user_features(
+            profile_api_response,
+            tweets_per_day
+        )
+
+        cleaned_tweets_data = clean_tweets_api_response(
+            tweets_api_response
+        )
+
+        parent_dir = os.path.dirname(settings.BASE_DIR)
+
+        with open(os.path.join(parent_dir, "profile_classifier.pkl"), "rb") as f:
             profile_classifier = pickle.load(f)
 
-        prediction = profile_classifier.predict_proba(cleaned_user_data)
-        dashboard_data['ml_prediction'] = prediction
-        print("Prediction:", prediction)
+        profile_prediction = profile_classifier.predict_proba(
+            cleaned_user_data
+        )[0][0]
+        print("Profile Prediction Model",profile_prediction )           
+        tweet_model = load_model(
+            os.path.join(parent_dir, "fake_account_model.h5")
+        )
 
-        tweet_model_path = os.path.join(parent_dir, 'fake_account_model.h5')
-        tokenizer_path = os.path.join(parent_dir, 'tokenizer.pickle')
-        scaler_path = os.path.join(parent_dir, 'scaler.pickle')
+        tokenizer = pickle.load(
+            open(os.path.join(parent_dir, "tokenizer.pickle"), "rb")
+        )
 
-        tweet_model = load_model(tweet_model_path)
-        tokenizer = pickle.load(open(tokenizer_path, "rb"))
-        scaler = pickle.load(open(scaler_path, "rb"))
+        scaler = pickle.load(
+            open(os.path.join(parent_dir, "scaler.pickle"), "rb")
+        )
 
         max_len = tweet_model.input[0].shape[1]
-        print("Cleaned Tweet Data", cleaned_tweets_data)
-        print("Tweet Prediction Model", self.tweet_prediction(cleaned_tweets_data, tokenizer, scaler, tweet_model, max_len))
 
-        print("Cleaned Tweet Data", cleaned_tweets_data,'\n\n',len(cleaned_tweets_data))
-        
-        print("Tweet Prediction Model", self.tweet_prediction(
-            cleaned_tweets_data, tokenizer, scaler, tweet_model, max_len
-        ))
+        tweet_prediction = self.tweet_prediction(
+            cleaned_tweets_data,
+            tokenizer,
+            scaler,
+            tweet_model,
+            max_len
+        )
+        print("Tweet Prediction Model",tweet_prediction )
+        tweet_prediction = 1 - tweet_prediction
 
+        dashboard_data["ml_prediction"] = (
+            0.4*profile_prediction + 0.6*tweet_prediction
+        ) 
+        print("Final Prediction",dashboard_data["ml_prediction"] )
         return Response(dashboard_data, status=status.HTTP_200_OK)
