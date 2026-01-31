@@ -1,0 +1,148 @@
+{
+  "result": {
+    "data": {
+      "user": {
+        "result": {
+          "__typename": "User",
+          "id": "VXNlcjoyNDU1NzQwMjgz",
+          "rest_id": "2455740283",
+          "affiliates_highlighted_label": {
+            "label": {
+              "url": {
+                "url": "https://twitter.com/Beast",
+                "urlType": "DeepLink"
+              },
+              "badge": {
+                "url": "https://pbs.twimg.com/profile_images/1976137331133308929/ey5ge0lX_bigger.jpg"
+              },
+              "description": "Beast Industries",
+              "userLabelType": "BusinessLabel",
+              "userLabelDisplayType": "Badge"
+            }
+          },
+          "avatar": {
+            "image_url": "https://pbs.twimg.com/profile_images/2008838029776158720/oDvxIJ1X_normal.jpg"
+          },
+          "core": {
+            "created_at": "Mon Apr 21 00:28:42 +0000 2014",
+            "name": "MrBeast",
+            "screen_name": "MrBeast"
+          },
+          "dm_permissions": {
+            "can_dm": false
+          },
+          "has_graduated_access": true,
+          "is_blue_verified": true,
+          "legacy": {
+            "default_profile": false,
+            "default_profile_image": false,
+            "description": "Beast Games Strong Vs Smart Is Out Now!",
+            "entities": {
+              "description": {
+                "urls": []
+              },
+              "url": {
+                "urls": [
+                  {
+                    "display_url": "linktr.ee/beastgames",
+                    "expanded_url": "https://linktr.ee/beastgames",
+                    "url": "https://t.co/Sn9fDg55Ji",
+                    "indices": [0, 23]
+                  }
+                ]
+              }
+            },
+            "fast_followers_count": 0,
+            "favourites_count": 22840,
+            "followers_count": 33882363,
+            "friends_count": 2260,
+            "has_custom_timelines": true,
+            "is_translator": false,
+            "listed_count": 9305,
+            "media_count": 1019,
+            "normal_followers_count": 33882363,
+            "pinned_tweet_ids_str": ["1941802940768850033"],
+            "possibly_sensitive": false,
+            "profile_banner_url": "https://pbs.twimg.com/profile_banners/2455740283/1767807630",
+            "profile_interstitial_type": "",
+            "statuses_count": 7708,
+            "translator_type": "none",
+            "url": "https://t.co/Sn9fDg55Ji",
+            "want_retweets": false,
+            "withheld_in_countries": []
+          },
+          "location": {
+            "location": "Follow me for a cookie"
+          },
+          "media_permissions": {
+            "can_media_tag": true
+          },
+          "parody_commentary_fan_label": "None",
+          "profile_image_shape": "Circle",
+          "professional": {
+            "rest_id": "1679573344159510535",
+            "professional_type": "Creator",
+            "category": [
+              {
+                "id": 933,
+                "name": "Media Personality",
+                "icon_name": ""
+              }
+            ]
+          },
+          "privacy": {
+            "protected": false
+          },
+          "relationship_perspectives": {
+            "following": false
+          },
+          "tipjar_settings": {
+            "is_enabled": true
+          },
+          "super_follow_eligible": true,
+          "verification": {
+            "verified": false
+          },
+          "legacy_extended_profile": {},
+          "is_profile_translatable": false,
+          "has_hidden_subscriptions_on_profile": false,
+          "verification_info": {
+            "is_identity_verified": false,
+            "reason": {
+              "description": {
+                "text": "This account is verified because it's an affiliate of @Beast on X. Learn more",
+                "entities": [
+                  {
+                    "from_index": 54,
+                    "to_index": 60,
+                    "ref": {
+                      "url": "https://twitter.com/Beast",
+                      "url_type": "ExternalUrl"
+                    }
+                  },
+                  {
+                    "from_index": 67,
+                    "to_index": 77,
+                    "ref": {
+                      "url": "https://help.twitter.com/en/rules-and-policies/profile-labels",
+                      "url_type": "ExternalUrl"
+                    }
+                  }
+                ]
+              },
+              "verified_since_msec": "1519632858355"
+            }
+          },
+          "highlights_info": {
+            "can_highlight_tweets": true,
+            "highlighted_tweets": "4"
+          },
+          "user_seed_tweet_count": 0,
+          "premium_gifting_eligible": false,
+          "business_account": {},
+          "creator_subscriptions_count": 6
+        }
+      }
+    }
+  }
+}
