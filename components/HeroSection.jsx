@@ -34,30 +34,19 @@ export default function BotDetectorApp() {
       const data = await res.json();
 
       if (!res.ok) {
-        if (res.status === 422 && data.error_code === "INSUFFICIENT_DATA") {
-          setError("Not enough data to analyze this account.");
-        } else {
-          setError(data.error || "Analysis failed. Please try again.");
-        }
+        setError(data.error || "Analysis failed.");
         return;
       }
 
       setResult(data);
-      const humanProb = data.ml_prediction;
-      const botProb = 1 - data.ml_prediction;
-
-      const isBotResult = botProb >= 0.5;
+      
+      const prob = data.fake_probability;
+      const isBotResult = prob >= 0.5;
 
       setIsBot(isBotResult);
       setLabel(isBotResult ? "Bot Probability" : "Human Probability");
-      setPercentage(
-        isBotResult
-          ? Math.round(botProb * 100)
-          : Math.round(humanProb * 100)
-      );
-      setLabelColor(
-        isBotResult ? "text-red-600" : "text-green-600"
-      );
+      setPercentage(Math.round(prob * 100));
+      setLabelColor(isBotResult ? "text-red-600" : "text-green-600");
       
     } catch (err) {
       setError("Network error. Please try again.");
@@ -74,15 +63,6 @@ export default function BotDetectorApp() {
     setResult(null);
     setUsername("");
     setError("");
-  };
-
-  const getRiskColor = (level) => {
-    switch (level?.toLowerCase()) {
-      case 'high': return { bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-200' };
-      case 'medium': return { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200' };
-      case 'low': return { bg: 'bg-green-50', text: 'text-green-600', border: 'border-green-200' };
-      default: return { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200' };
-    }
   };
 
   return (
@@ -158,7 +138,7 @@ export default function BotDetectorApp() {
                 <div className="flex items-center gap-6 mb-8">
                   <div className="relative group">
                     <div className="absolute -inset-1 bg-gradient-to-r from-indigo-600 to-blue-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-                    <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100 shrink-0">
+                    <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100 shrink-0 flex items-center justify-center">
                       {result.profile_url ? (
                         <img
                           src={result.profile_url}
@@ -167,16 +147,16 @@ export default function BotDetectorApp() {
                           onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${result.username || 'U'}&background=4F46E5&color=fff`; }}
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-indigo-600 text-white text-3xl font-black">
-                          {(result.username || 'U').charAt(0).toUpperCase()}
+                        <div className="w-full h-full flex items-center justify-center bg-indigo-600 text-white text-3xl font-black uppercase">
+                          {(result.username || 'U').charAt(0)}
                         </div>
                       )}
                     </div>
                   </div>
                   <div>
-                    <h2 className="text-4xl font-black text-slate-900">{result.username || username}</h2>
+                    <h2 className="text-4xl font-black text-slate-900">@{result.username || username}</h2>
                     <p className="text-slate-500 font-semibold text-sm mt-2 flex items-center gap-2">
-                      <Clock size={14} /> Account Age: {result.account_age_days === -1 ? "Hidden/Unavailable" : `${result.account_age_days} days`}
+                      <Clock size={14} /> Account Age: {result.account_age_days <= 0 ? "Hidden/Unavailable" : `${result.account_age_days} days`}
                     </p>
                   </div>
                 </div>
@@ -207,7 +187,7 @@ export default function BotDetectorApp() {
                 <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-slate-100">
                   <div>
                     <p className="text-slate-500 text-xs font-bold mb-1">Engagement Rate</p>
-                    <p className="text-lg font-black">{(result.visual_metrics.engagement_rate * 100).toFixed(3)}%</p>
+                    <p className="text-lg font-black">{(result.visual_metrics.engagement_rate_impressions * 100).toFixed(3)}%</p>
                   </div>
                   <div>
                     <p className="text-slate-500 text-xs font-bold mb-1">Avg Retweets</p>
@@ -247,7 +227,7 @@ export default function BotDetectorApp() {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                      <XAxis dataKey="day" axisLine={false} tickLine={false} fontSize={12} fontWeight={600} tick={{ fill: '#94A3B8' }} />
+                      <XAxis dataKey="time" axisLine={false} tickLine={false} fontSize={12} fontWeight={600} tick={{ fill: '#94A3B8' }} />
                       <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', fontWeight: 'bold', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }} />
                       <Area type="monotone" dataKey="posts" stroke="#4F46E5" strokeWidth={3} fillOpacity={1} fill="url(#colorPosts)" />
                     </AreaChart>
@@ -304,7 +284,7 @@ export default function BotDetectorApp() {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                      <XAxis dataKey="day" axisLine={false} tickLine={false} fontSize={12} fontWeight={600} />
+                      <XAxis dataKey="time" axisLine={false} tickLine={false} fontSize={12} fontWeight={600} />
                       <Tooltip contentStyle={{ borderRadius: '16px', border: 'none' }} />
                       <Area type="monotone" dataKey="engagement" stroke="#EC4899" strokeWidth={3} fillOpacity={1} fill="url(#colorEngagement)" />
                     </AreaChart>
@@ -333,7 +313,7 @@ export default function BotDetectorApp() {
               <div className="mt-6 p-5 bg-white rounded-2xl border-2 border-amber-200">
                 <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                   <AlertTriangle size={16} className="text-amber-600" />
-                  <span><strong>AI Verdict:</strong> This account has a {Math.round(result.fake_probability * 100)}% bot probability. Engagement rate is lower than expected for an audience of this size.</span>
+                  <span><strong>AI Verdict:</strong> This account has a {Math.round(result.fake_probability * 100)}% bot probability. Engagement rate is {result.visual_metrics.engagement_rate_impressions < 0.003 ? "lower" : "consistent"} than expected for this audience size.</span>
                 </p>
               </div>
             </div>
