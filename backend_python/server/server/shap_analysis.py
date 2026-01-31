@@ -66,7 +66,7 @@ def predict_with_shap(idx,cleaned_tweets_data,scaler, tokenizer, model, explaine
         for name, val in zip(NUM_FEATURES, num_shap_vals)
     ]
 
-    # Final response
+  
     response = {
         "prediction": label,
         "confidence": prob,
