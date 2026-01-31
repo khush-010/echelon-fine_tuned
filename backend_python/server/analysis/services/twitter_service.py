@@ -6,7 +6,6 @@ def fetch_twitter_user(username):
     url = "https://twitter241.p.rapidapi.com/user"
 
     querystring = {"username": username}
-    print(settings.RAPIDAPI_KEY, settings.RAPIDAPI_HOST)
     headers = {
         "x-rapidapi-key": settings.RAPIDAPI_KEY,# remove the env variable and directly use the key herex
         "x-rapidapi-host": settings.RAPIDAPI_HOST
@@ -132,3 +131,93 @@ def clean_user_features(api_response, target=None):
 
     except KeyError:
         return None
+
+
+def clean_tweets_api_response(data: dict) -> list[list]:
+    """
+    Extract cleaned tweet data as array format:
+    [
+        text:str,
+        retweet_count:int,
+        reply_count:int,
+        favorite_count:int,
+        num_hashtags:int,
+        num_urls:int,
+        num_mentions:int
+    ]
+    """
+
+    cleaned_tweets = []
+
+    instructions = data.get("result", {}).get("timeline", {}).get("instructions", [])
+
+    for instruction in instructions:
+        if instruction.get("type") != "TimelineAddEntries":
+            continue
+
+        entries = instruction.get("entries", [])
+
+        for entry in entries:
+            content = entry.get("content", {})
+            entry_type = content.get("entryType")
+
+            # Case 1: Single Tweet
+            if entry_type == "TimelineTimelineItem":
+                tweet = (
+                    content.get("itemContent", {})
+                    .get("tweet_results", {})
+                    .get("result", {})
+                )
+
+                extracted = _extract_tweet_array(tweet)
+                if extracted:
+                    cleaned_tweets.append(extracted)
+
+            # Case 2: Conversation Thread
+            elif entry_type == "TimelineTimelineModule":
+                items = content.get("items", [])
+
+                for item in items:
+                    tweet = (
+                        item.get("item", {})
+                        .get("itemContent", {})
+                        .get("tweet_results", {})
+                        .get("result", {})
+                    )
+
+                    extracted = _extract_tweet_array(tweet)
+                    if extracted:
+                        cleaned_tweets.append(extracted)
+
+    return cleaned_tweets
+
+
+def _extract_tweet_array(tweet: dict) -> list | None:
+    """
+    Extract required fields from tweet in array format.
+    """
+
+    if not tweet or "legacy" not in tweet:
+        return None
+
+    legacy = tweet["legacy"]
+    entities = legacy.get("entities", {})
+
+    text = legacy.get("full_text", "")
+    retweet_count = legacy.get("retweet_count", 0)
+    reply_count = legacy.get("reply_count", 0)
+    favorite_count = legacy.get("favorite_count", 0)
+
+    num_hashtags = len(entities.get("hashtags", []))
+    num_urls = len(entities.get("urls", []))
+    num_mentions = len(entities.get("user_mentions", []))
+
+    return [
+        text,
+        retweet_count,
+        reply_count,
+        favorite_count,
+        num_hashtags,
+        num_urls,
+        num_mentions,
+    ]
