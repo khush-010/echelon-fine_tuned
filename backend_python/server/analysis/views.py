@@ -26,12 +26,17 @@ USE_SIMULATION = False
 
 
 class AnalyzeTwitterView(APIView):
+    
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         parent_dir = os.path.dirname(settings.BASE_DIR)
-        self.tweet_model = load_model(
-            os.path.join(parent_dir, "fake_account_model.h5")
-        )
+        self.tweet_model = load_model(os.path.join(parent_dir, "fake_account_model.h5"))
+        file_path = os.path.join(parent_dir, "shape_background.npy")
+        background = np.load(file_path)
+        self.explainer = shap.KernelExplainer(self.shap_predict_fn, background)
+        self.tokenizer = pickle.load(open(os.path.join(parent_dir, "tokenizer.pickle"), "rb"))
+        self.scaler = pickle.load(open(os.path.join(parent_dir, "scaler.pickle"), "rb"))
+        
     def shap_predict_fn(self, X):
         max_len = self.tweet_model.input[0].shape[1]
         X_text = X[:, :max_len].astype(int)
@@ -171,6 +176,10 @@ class AnalyzeTwitterView(APIView):
         cleaned_tweets_data = clean_tweets_api_response(
             tweets_api_response
         )
+        curr_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        with open(os.path.join(curr_dir, "latest.json"), 'w') as f:
+            json.dump(cleaned_tweets_data, f)
 
         parent_dir = os.path.dirname(settings.BASE_DIR)
 
@@ -184,33 +193,35 @@ class AnalyzeTwitterView(APIView):
         profile_prediction=1-profile_prediction         
         
 
-        tokenizer = pickle.load(
-            open(os.path.join(parent_dir, "tokenizer.pickle"), "rb")
-        )
-
-        scaler = pickle.load(
-            open(os.path.join(parent_dir, "scaler.pickle"), "rb")
-        )
-
         max_len = self.tweet_model.input[0].shape[1]
 
         tweet_prediction = self.tweet_prediction(
             cleaned_tweets_data,
-            tokenizer,
-            scaler,
+            self.tokenizer,
+            self.scaler,
             self.tweet_model,
             max_len
         )
         print("Tweet Prediction Model",tweet_prediction )
         # tweet_prediction = 1 - tweet_prediction
-        file_path = os.path.join(parent_dir, "shape_background.npy")
-        background = np.load(file_path)
-        # explainer = shap.KernelExplainer(self.shap_predict_fn, background)
-        # print(predict_with_shap(0, cleaned_tweets_data, scaler, tokenizer, self.tweet_model, 
-        #                         # explainer, 
-        #                         max_len))
+        
         dashboard_data["ml_prediction"] = (
             0.4*profile_prediction + 0.6*tweet_prediction
         ) 
         print("Final Prediction",dashboard_data["ml_prediction"] )
         return Response(dashboard_data, status=status.HTTP_200_OK)
+
+    def get(self, request):
+    
+        parent_dir = os.path.dirname(settings.BASE_DIR)
+        file_path = os.path.join(parent_dir, "shape_background.npy")
+        background = np.load(file_path)
+        curr_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        with open(os.path.join(curr_dir, "latest.json")) as f:
+            cleaned_tweets_data = json.load(f)
+    
+        max_len = self.tweet_model.input[0].shape[1]
+        shap_response = predict_with_shap(0, cleaned_tweets_data, self.scaler, self.tokenizer, self.tweet_model, self.explainer, max_len)
+        
+        return Response(shap_response, status=status.HTTP_200_OK)
