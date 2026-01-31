@@ -15,7 +15,11 @@ export default function BotDetectorApp() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
-
+  const [isBot, setIsBot] = useState(null);
+  const [label, setLabel] = useState("");
+  const [percentage, setPercentage] = useState(0);
+  const [labelColor, setLabelColor] = useState("");
+  
   const handleAnalyze = async () => {
     if (!username.trim()) return;
     setIsLoading(true);
@@ -24,17 +28,47 @@ export default function BotDetectorApp() {
       const res = await fetch('http://localhost:8000/api/analyze-twitter/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username }),
+        body: JSON.stringify({ username }),
       });
-      if (!res.ok) throw new Error('Analysis failed');
+
       const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 422 && data.error_code === "INSUFFICIENT_DATA") {
+          setError("Not enough data to analyze this account.");
+        } else {
+          setError(data.error || "Analysis failed. Please try again.");
+        }
+        return;
+      }
+
       setResult(data);
+      const humanProb = data.ml_prediction;
+      const botProb = 1 - data.ml_prediction;
+
+      const isBotResult = botProb >= 0.5;
+
+      setIsBot(isBotResult);
+      setLabel(isBotResult ? "Bot Probability" : "Human Probability");
+      setPercentage(
+        isBotResult
+          ? Math.round(botProb * 100)
+          : Math.round(humanProb * 100)
+      );
+      setLabelColor(
+        isBotResult ? "text-red-600" : "text-green-600"
+      );
+      
     } catch (err) {
-      setError("Analysis failed. Please try again or check the username.");
+      setError("Network error. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
+
+  const labelbgColorstart = isBot === null ? "bg-slate-100" : isBot ? "bg-red-50" : "bg-green-50";
+  const labelbgColorend = isBot === null ? "to-slate-100" : isBot ? "to-red-100" : "to-green-100";
+  const labelBorderColor = isBot === null ? "border-slate-200" : isBot ? "border-red-200" : "border-green-200";
 
   const resetSearch = () => {
     setResult(null);
@@ -43,7 +77,7 @@ export default function BotDetectorApp() {
   };
 
   const getRiskColor = (level) => {
-    switch(level?.toLowerCase()) {
+    switch (level?.toLowerCase()) {
       case 'high': return { bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-200' };
       case 'medium': return { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200' };
       case 'low': return { bg: 'bg-green-50', text: 'text-green-600', border: 'border-green-200' };
@@ -89,13 +123,13 @@ export default function BotDetectorApp() {
                     <div className="absolute inset-y-0 left-5 flex items-center text-slate-400 group-focus-within:text-indigo-600 transition-colors">
                       <Search size={22} strokeWidth={2.5} />
                     </div>
-                    <input 
-                      type="text" 
-                      value={username} 
+                    <input
+                      type="text"
+                      value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && !isLoading && handleAnalyze()}
-                      placeholder="@username or handle" 
-                      className="w-full pl-16 pr-6 py-5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-lg font-medium outline-none focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all placeholder:text-slate-400" 
+                      placeholder="@username or handle"
+                      className="w-full pl-16 pr-6 py-5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-lg font-medium outline-none focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all placeholder:text-slate-400"
                     />
                   </div>
                 </div>
@@ -112,6 +146,7 @@ export default function BotDetectorApp() {
               <button onClick={resetSearch} className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 hover:text-indigo-600 font-bold text-sm transition-all rounded-xl border border-slate-200 shadow-sm">
                 <ArrowLeft size={16} /> <span>New Analysis</span>
               </button>
+
               <div className="flex items-center gap-3">
                 <div className="text-xs font-bold uppercase tracking-widest text-slate-400">Report ID: {Math.random().toString(36).substring(7).toUpperCase()}</div>
                 <div className="text-xs text-slate-400">{new Date(result.timestamp).toLocaleString()}</div>
@@ -120,16 +155,30 @@ export default function BotDetectorApp() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-xl p-8">
-                <div className="flex justify-between items-start mb-6">
+                <div className="flex items-center gap-6 mb-8">
+                  <div className="relative group">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-indigo-600 to-blue-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+                    <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100 shrink-0">
+                      {result.profile_url ? (
+                        <img
+                          src={result.profile_url}
+                          alt={result.username}
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${result.username || 'U'}&background=4F46E5&color=fff`; }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-indigo-600 text-white text-3xl font-black">
+                          {(result.username || 'U').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <div>
                     <h2 className="text-4xl font-black text-slate-900">{result.username || username}</h2>
                     <p className="text-slate-500 font-semibold text-sm mt-2 flex items-center gap-2">
                       <Clock size={14} /> Account Age: {result.account_age_days === -1 ? "Hidden/Unavailable" : `${result.account_age_days} days`}
                     </p>
                   </div>
-                  {/* <div className={`px-5 py-2.5 rounded-full font-black text-xs uppercase tracking-wider border-2 ${getRiskColor(result.risk_level).bg} ${getRiskColor(result.risk_level).text} ${getRiskColor(result.risk_level).border}`}>
-                    {result.risk_level} Risk
-                  </div> */}
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -145,9 +194,13 @@ export default function BotDetectorApp() {
                     <p className="text-amber-600 text-xs font-bold uppercase mb-1 flex items-center gap-1"><MessageSquare size={12} /> Avg Likes</p>
                     <p className="text-2xl font-black text-slate-900">{Math.round(result.visual_metrics.avg_likes).toLocaleString()}</p>
                   </div>
-                  <div className="bg-gradient-to-br from-red-50 to-rose-50 p-4 rounded-2xl border border-red-100">
-                    <p className="text-red-600 text-xs font-bold uppercase mb-1 flex items-center gap-1"><Target size={12} /> Bot Score</p>
-                    <p className="text-2xl font-black text-slate-900">{(result.fake_probability * 100).toFixed(0)}%</p>
+                  <div className={`bg-gradient-to-br ${labelbgColorstart} ${labelbgColorend} p-4 rounded-2xl border ${labelBorderColor}`}>
+                    <p className={`${labelColor} text-xs font-bold uppercase mb-1 flex items-center gap-1`}>
+                      <Target size={12} /> {label}
+                    </p>
+                    <p className="text-2xl font-black text-slate-900">
+                      {percentage}%
+                    </p>
                   </div>
                 </div>
 
@@ -190,11 +243,11 @@ export default function BotDetectorApp() {
                     <AreaChart data={result.activity_history}>
                       <defs>
                         <linearGradient id="colorPosts" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.3}/><stop offset="95%" stopColor="#4F46E5" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.3} /><stop offset="95%" stopColor="#4F46E5" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                      <XAxis dataKey="day" axisLine={false} tickLine={false} fontSize={12} fontWeight={600} tick={{fill: '#94A3B8'}} />
+                      <XAxis dataKey="day" axisLine={false} tickLine={false} fontSize={12} fontWeight={600} tick={{ fill: '#94A3B8' }} />
                       <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', fontWeight: 'bold', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }} />
                       <Area type="monotone" dataKey="posts" stroke="#4F46E5" strokeWidth={3} fillOpacity={1} fill="url(#colorPosts)" />
                     </AreaChart>
@@ -210,7 +263,7 @@ export default function BotDetectorApp() {
                   <ResponsiveContainer width="100%" height="100%">
                     <RadarChart data={result.behavior_scores}>
                       <PolarGrid stroke="#E2E8F0" />
-                      <PolarAngleAxis dataKey="category" tick={{fill: '#64748B', fontSize: 11, fontWeight: 600}} />
+                      <PolarAngleAxis dataKey="category" tick={{ fill: '#64748B', fontSize: 11, fontWeight: 600 }} />
                       <PolarRadiusAxis angle={90} domain={[0, 100]} />
                       <Radar name="Score" dataKey="score" stroke="#4F46E5" fill="#4F46E5" fillOpacity={0.6} strokeWidth={2} />
                       <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontWeight: 'bold' }} />
@@ -229,7 +282,7 @@ export default function BotDetectorApp() {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={12} fontWeight={600} />
                       <YAxis axisLine={false} tickLine={false} fontSize={11} />
-                      <Tooltip cursor={{fill: '#F8FAFC'}} contentStyle={{ borderRadius: '16px', border: 'none' }} />
+                      <Tooltip cursor={{ fill: '#F8FAFC' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
                       <Bar dataKey="value" radius={[12, 12, 0, 0]} barSize={80}>
                         <Cell fill="#4F46E5" /><Cell fill="#EC4899" />
                       </Bar>
@@ -247,7 +300,7 @@ export default function BotDetectorApp() {
                     <AreaChart data={result.activity_history}>
                       <defs>
                         <linearGradient id="colorEngagement" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#EC4899" stopOpacity={0.3}/><stop offset="95%" stopColor="#EC4899" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="#EC4899" stopOpacity={0.3} /><stop offset="95%" stopColor="#EC4899" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
