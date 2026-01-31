@@ -49,23 +49,23 @@ class AnalyzeTwitterView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # profile_api_response = fetch_twitter_user(username)
+        profile_api_response = fetch_twitter_user(username)
         # print("Profile API Response:", profile_api_response)
         user_id = profile_api_response["result"]["data"]["user"]["result"]["rest_id"]
 
 
-        # tweets_api_response = fetch_user_tweets(user_id, count=100)
+        tweets_api_response = fetch_user_tweets(user_id, count=100)
         
-        BASE_DIR = settings.BASE_DIR
+        # BASE_DIR = settings.BASE_DIR
 
-        file_path = os.path.join(BASE_DIR, "analysis", "response.json")
+        # file_path = os.path.join(BASE_DIR, "analysis", "response.json")
 
-        with open(file_path, "r") as f:
-            profile_api_response = json.load(f)
+        # with open(file_path, "r") as f:
+        #     profile_api_response = json.load(f)
             
-        tweets_file = os.path.join(BASE_DIR, "analysis", "services", "data.json")
-        with open(tweets_file, "r", encoding="utf-8") as f:
-            tweets_api_response = json.load(f)
+        # tweets_file = os.path.join(BASE_DIR, "analysis", "services", "data.json")
+        # with open(tweets_file, "r", encoding="utf-8") as f:
+        #     tweets_api_response = json.load(f)
         
         if not profile_api_response:
             return Response(
@@ -102,6 +102,7 @@ class AnalyzeTwitterView(APIView):
         dashboard_data["account_age_days"] = (
             datetime.now(timezone.utc) - account_created
         ).days
+        tweets_per_days = dashboard_data.get("visual_metrics", {}).get("posts_per_day", 0)
         if not dashboard_data:
             return Response(
                 {
@@ -112,10 +113,10 @@ class AnalyzeTwitterView(APIView):
                 status=HTTPStatus.UNPROCESSABLE_ENTITY
             )
 
-        cleaned_user_data = clean_user_features(profile_api_response)
+        cleaned_user_data = clean_user_features(profile_api_response, tweets_per_days)
         cleaned_tweets_data = clean_tweets_api_response(tweets_api_response)
-        print("Cleaned User Data:", cleaned_user_data)
-        print("Cleaned Tweets Data:", cleaned_tweets_data)
+        # print("Cleaned User Data:", cleaned_user_data)
+        # print("Cleaned Tweets Data:", cleaned_tweets_data)
         
         
         parent_dir = os.path.dirname(settings.BASE_DIR)
@@ -137,10 +138,10 @@ class AnalyzeTwitterView(APIView):
         scaler = pickle.load(open(scaler_path, "rb"))
 
         max_len = tweet_model.input[0].shape[1]
-        print("Cleaned Tweet Data", cleaned_tweets_data)
+        # print("Cleaned Tweet Data", cleaned_tweets_data)
         print("Tweet Prediction Model", self.tweet_prediction(cleaned_tweets_data, tokenizer, scaler, tweet_model, max_len))
 
-        print("Cleaned Tweet Data", cleaned_tweets_data,'\n\n',len(cleaned_tweets_data))
+        # print("Cleaned Tweet Data", cleaned_tweets_data,'\n\n',len(cleaned_tweets_data))
         
         print("Tweet Prediction Model", self.tweet_prediction(
             cleaned_tweets_data, tokenizer, scaler, tweet_model, max_len
