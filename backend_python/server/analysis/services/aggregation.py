@@ -40,12 +40,12 @@ def safe_mean(values):
     return sum(clean) / len(clean)
 
 
-def aggregate_twitter_data(api_response):
+def aggregate_twitter_data(api_response, account_age_days=None):
     """
     Content-only Twitter/X analytics.
-    Retweets excluded from engagement.
-    No network-based heuristics.
-    No NaNs.
+    Engagement = Engagement Rate by Impressions (ERi).
+    Retweets excluded.
+    Time-based dynamic activity timeline.
     """
 
     try:
@@ -80,7 +80,7 @@ def aggregate_twitter_data(api_response):
                         if not user_legacy:
                             user_legacy = tweet["user"]
 
-    if not tweets or not user_legacy:
+    if not user_legacy:
         return None
 
     followers = safe_int(user_legacy.get("followers_count"))
@@ -88,69 +88,79 @@ def aggregate_twitter_data(api_response):
     total_posts = safe_int(user_legacy.get("statuses_count"))
     verified = bool(user_legacy.get("verified", False))
 
-    created_at_str = user_legacy.get("created_at")
-
-    if isinstance(created_at_str, str):
-        try:
-            account_created = datetime.strptime(
-                created_at_str,
-                "%a %b %d %H:%M:%S %z %Y"
-            )
-            account_age_days = (
-                datetime.now(timezone.utc) - account_created
-            ).days
-        except ValueError:
-            account_age_days = 0
-    else:
-        account_age_days = 0
+    account_age_days = account_age_days or 0
 
     posts_per_day = (
         total_posts / account_age_days
         if account_age_days > 0 else 0.0
     )
 
-    originals = [t for t in tweets if not t["is_retweet"]]
+    originals = [
+        t for t in tweets
+        if not t["is_retweet"] and t["views"] > 0
+    ]
 
-    likes = [t["likes"] for t in originals]
-    replies = [t["replies"] for t in originals]
-    retweets = [t["retweets"] for t in originals]
-    views = [t["views"] for t in originals if t["views"] > 0]
+    total_likes = sum(t["likes"] for t in originals)
+    total_replies = sum(t["replies"] for t in originals)
+    total_retweets = sum(t["retweets"] for t in originals)
+    total_views = sum(t["views"] for t in originals)
 
-    avg_likes = safe_mean(likes)
-    avg_comments = safe_mean(replies)
-    avg_retweets = safe_mean(retweets)
-    avg_views = safe_mean(views)
+    total_engagement = total_likes + total_replies + total_retweets
 
-    total_engagement = safe_float(
-        avg_likes + avg_comments + avg_retweets
-    )
-
-    # Primary engagement metric (NaN-safe)
     view_engagement_rate = (
-        total_engagement / avg_views
-        if avg_views > 0 else 0.0
+        total_engagement / total_views
+        if total_views > 0 else 0.0
     )
 
     view_engagement_rate = safe_float(view_engagement_rate)
 
-    daily_data = defaultdict(lambda: {"posts": 0, "engagement": 0})
+    avg_likes = safe_mean([t["likes"] for t in originals])
+    avg_comments = safe_mean([t["replies"] for t in originals])
+    avg_retweets = safe_mean([t["retweets"] for t in originals])
+    avg_views = safe_mean([t["views"] for t in originals])
 
-    for t in tweets:
-        if not isinstance(t["created_at"], datetime):
-            continue
+    # ---------- Dynamic Time-Based Activity Timeline ----------
 
-        day = t["created_at"].strftime("%a")
-        daily_data[day]["posts"] += 1
-
-        if not t["is_retweet"]:
-            daily_data[day]["engagement"] += (
-                t["likes"] + t["replies"] + t["retweets"]
-            )
-
-    activity_history = [
-        {"day": day, **data}
-        for day, data in daily_data.items()
+    timestamps = [
+        t["created_at"]
+        for t in tweets
+        if isinstance(t["created_at"], datetime)
     ]
+
+    timeline_data = defaultdict(lambda: {"posts": 0, "engagement": 0})
+
+    if timestamps:
+        start = min(timestamps)
+        end = max(timestamps)
+        span_days = (end - start).days
+
+        if span_days <= 7:
+            fmt = "%Y-%m-%d %H:00"
+        elif span_days <= 30:
+            fmt = "%Y-%m-%d"
+        elif span_days <= 180:
+            fmt = "%Y-W%U"
+        else:
+            fmt = "%Y-%m"
+
+        for t in tweets:
+            if not isinstance(t["created_at"], datetime):
+                continue
+
+            key = t["created_at"].strftime(fmt)
+            timeline_data[key]["posts"] += 1
+
+            if not t["is_retweet"]:
+                timeline_data[key]["engagement"] += (
+                    t["likes"] + t["replies"] + t["retweets"]
+                )
+
+        activity_history = [
+            {"time": k, **v}
+            for k, v in sorted(timeline_data.items())
+        ]
+    else:
+        activity_history = []
 
     behavior_scores = [
         {
@@ -185,8 +195,8 @@ def aggregate_twitter_data(api_response):
 
     signals = []
 
-    if view_engagement_rate < 0.005:
-        signals.append("Low engagement relative to views")
+    if view_engagement_rate < 0.003:
+        signals.append("Low engagement relative to impressions")
 
     if posts_per_day > 50:
         signals.append("High posting frequency detected")
@@ -202,7 +212,7 @@ def aggregate_twitter_data(api_response):
         "account_age_days": account_age_days,
         "verified": verified,
         "visual_metrics": {
-            "view_engagement_rate": round(view_engagement_rate, 5),
+            "engagement_rate_impressions": round(view_engagement_rate, 5),
             "posts_per_day": round(posts_per_day, 2),
             "followers": followers,
             "following": following,

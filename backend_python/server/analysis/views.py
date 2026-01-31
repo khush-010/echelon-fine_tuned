@@ -1,3 +1,4 @@
+from http import HTTPStatus
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -47,14 +48,25 @@ class AnalyzeTwitterView(APIView):
                 {"error": "Username is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        profile_api_response = fetch_twitter_user(username)
+
+        # profile_api_response = fetch_twitter_user(username)
         # print("Profile API Response:", profile_api_response)
-        # BASE_DIR = settings.BASE_DIR
-        # file_path = os.path.join(BASE_DIR, "analysis", "response.json")
+        user_id = profile_api_response["result"]["data"]["user"]["result"]["rest_id"]
 
-        # with open(file_path, "r") as f:
-        #     profile_api_response = json.load(f)
 
+        # tweets_api_response = fetch_user_tweets(user_id, count=100)
+        
+        BASE_DIR = settings.BASE_DIR
+
+        file_path = os.path.join(BASE_DIR, "analysis", "response.json")
+
+        with open(file_path, "r") as f:
+            profile_api_response = json.load(f)
+            
+        tweets_file = os.path.join(BASE_DIR, "analysis", "services", "data.json")
+        with open(tweets_file, "r", encoding="utf-8") as f:
+            tweets_api_response = json.load(f)
+        
         if not profile_api_response:
             return Response(
                 {"error": "Failed to fetch user data"},
@@ -79,9 +91,7 @@ class AnalyzeTwitterView(APIView):
                 {"error": "Failed to fetch user tweets"},
                 status=status.HTTP_404_NOT_FOUND
             )
-
         dashboard_data = aggregate_twitter_data(tweets_api_response)
-
         created_at_str = profile_api_response["result"]["data"]["user"]["result"]["core"]["created_at"]
 
         account_created = datetime.strptime(
@@ -92,19 +102,22 @@ class AnalyzeTwitterView(APIView):
         dashboard_data["account_age_days"] = (
             datetime.now(timezone.utc) - account_created
         ).days
-
         if not dashboard_data:
             return Response(
-                {"error": "Failed to process user data"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {
+                    "error": "Not enough data to analyze",
+                    "error_code": "INSUFFICIENT_DATA",
+                    "can_analyze": False
+                },
+                status=HTTPStatus.UNPROCESSABLE_ENTITY
             )
 
         cleaned_user_data = clean_user_features(profile_api_response)
         cleaned_tweets_data = clean_tweets_api_response(tweets_api_response)
-
-        # print("Cleaned User Data:", cleaned_user_data)
-        # print("Cleaned Tweets Data:", cleaned_tweets_data)
-
+        print("Cleaned User Data:", cleaned_user_data)
+        print("Cleaned Tweets Data:", cleaned_tweets_data)
+        
+        
         parent_dir = os.path.dirname(settings.BASE_DIR)
         model_path = os.path.join(parent_dir, 'profile_classifier.pkl')
 
@@ -113,7 +126,6 @@ class AnalyzeTwitterView(APIView):
 
         prediction = profile_classifier.predict_proba(cleaned_user_data)
         dashboard_data['ml_prediction'] = prediction
-
         print("Prediction:", prediction)
 
         tweet_model_path = os.path.join(parent_dir, 'fake_account_model.h5')
@@ -125,6 +137,8 @@ class AnalyzeTwitterView(APIView):
         scaler = pickle.load(open(scaler_path, "rb"))
 
         max_len = tweet_model.input[0].shape[1]
+        print("Cleaned Tweet Data", cleaned_tweets_data)
+        print("Tweet Prediction Model", self.tweet_prediction(cleaned_tweets_data, tokenizer, scaler, tweet_model, max_len))
 
         print("Cleaned Tweet Data", cleaned_tweets_data,'\n\n',len(cleaned_tweets_data))
         
