@@ -40,6 +40,54 @@ def safe_mean(values):
     return sum(clean) / len(clean)
 
 
+def build_interaction_network(tweets):
+    interaction_counts = {
+        "reply": 0,
+        "mention": 0,
+        "retweet": 0,
+        "quote": 0
+    }
+
+    for t in tweets:
+        text = t.get("text", "")
+
+        if t.get("is_retweet"):
+            interaction_counts["retweet"] += 1
+
+        if text.startswith("@"):
+            interaction_counts["reply"] += 1
+
+        if "@" in text and not text.startswith("@"):
+            interaction_counts["mention"] += text.count("@")
+
+        if t.get("is_quote"):
+            interaction_counts["quote"] += 1
+
+    nodes = [
+        {"id": "self", "label": "Account", "type": "center"}
+    ]
+
+    edges = []
+
+    for key, count in interaction_counts.items():
+        if count > 0:
+            nodes.append({
+                "id": key,
+                "label": key.capitalize(),
+                "count": count
+            })
+            edges.append({
+                "from": "self",
+                "to": key,
+                "weight": count
+            })
+
+    return {
+        "nodes": nodes,
+        "edges": edges
+    }
+
+
 def aggregate_twitter_data(api_response, account_age_days=None):
     """
     Content-only Twitter/X analytics.
@@ -112,14 +160,12 @@ def aggregate_twitter_data(api_response, account_age_days=None):
         if total_views > 0 else 0.0
     )
 
-
     view_engagement_rate = safe_float(view_engagement_rate)
 
     avg_likes = safe_mean([t["likes"] for t in originals])
     avg_comments = safe_mean([t["replies"] for t in originals])
     avg_retweets = safe_mean([t["retweets"] for t in originals])
     avg_views = safe_mean([t["views"] for t in originals])
-
 
     timestamps = [
         t["created_at"]
@@ -204,6 +250,8 @@ def aggregate_twitter_data(api_response, account_age_days=None):
     if originals and (len(originals) / len(tweets)) < 0.3:
         signals.append("Heavy reliance on retweets")
 
+    network_graph = build_interaction_network(tweets)
+
     return {
         "username": user_legacy.get("screen_name"),
         "fake_probability": round(fake_probability, 2),
@@ -226,6 +274,7 @@ def aggregate_twitter_data(api_response, account_age_days=None):
         },
         "activity_history": activity_history,
         "behavior_scores": behavior_scores,
+        "network_graph": network_graph,
         "signals": signals,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
@@ -250,6 +299,7 @@ def extract_tweet(content):
         return {
             "created_at": created_at,
             "is_retweet": is_retweet,
+            "is_quote": "quoted_status_result" in legacy,
             "likes": safe_int(legacy.get("favorite_count")) if not is_retweet else 0,
             "replies": safe_int(legacy.get("reply_count")) if not is_retweet else 0,
             "retweets": safe_int(legacy.get("retweet_count")) if not is_retweet else 0,
@@ -257,6 +307,7 @@ def extract_tweet(content):
                 safe_int(tweet_data.get("views", {}).get("count"))
                 if not is_retweet else 0
             ),
+            "text": legacy.get("full_text", ""),
             "user": user,
         }
 

@@ -205,8 +205,10 @@ class AnalyzeTwitterView(APIView):
         # tweet_prediction = 1 - tweet_prediction
         file_path = os.path.join(parent_dir, "shape_background.npy")
         background = np.load(file_path)
-        explainer = shap.KernelExplainer(self.shap_predict_fn, background)
-        print(predict_with_shap(0, cleaned_tweets_data, scaler, tokenizer, self.tweet_model, explainer, max_len))
+        # explainer = shap.KernelExplainer(self.shap_predict_fn, background)
+        # print(predict_with_shap(0, cleaned_tweets_data, scaler, tokenizer, self.tweet_model, 
+        #                         # explainer, 
+        #                         max_len))
         dashboard_data["ml_prediction"] = (
             0.4*profile_prediction + 0.6*tweet_prediction
         ) 
