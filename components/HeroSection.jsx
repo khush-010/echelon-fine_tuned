@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2, TrendingUp, Users, Activity, AlertTriangle, ShieldCheck, Search, ArrowLeft, BarChart3, Globe, Target, Clock, MessageSquare, Eye, UserCheck, Heart, Repeat } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 
@@ -19,40 +19,57 @@ export default function BotDetectorApp() {
   const [label, setLabel] = useState("");
   const [percentage, setPercentage] = useState(0);
   const [labelColor, setLabelColor] = useState("");
-  
+  const [loadingStage, setLoadingStage] = useState(null);
+
   const handleAnalyze = async () => {
     if (!username.trim()) return;
     setIsLoading(true);
     setError("");
-    try {
-      const res = await fetch('http://localhost:8000/api/analyze-twitter/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username }),
-      });
+    setLoadingStage("profile");
 
-      const data = await res.json();
+    setTimeout(async () => {
+      setLoadingStage("tweets");
+      try {
+        const res = await fetch('http://localhost:8000/api/analyze-twitter/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username }),
+        });
 
-      if (!res.ok) {
-        setError(data.error || "Analysis failed.");
-        return;
+        const data = await res.json();
+
+        if (!res.ok) {
+          setError(data.error || "Analysis failed.");
+          setLoadingStage(null);
+          setIsLoading(false);
+          return;
+        }
+
+        setResult(data);
+
+        const prob = data.ml_prediction;
+        const isBotResult = prob >= 0.5;
+
+        setIsBot(isBotResult);
+        setLabel(isBotResult ? "Bot Probability" : "Human Probability");
+        setPercentage(isBotResult ? Math.round(prob * 100) : Math.round((1 - prob) * 100));
+        setLabelColor(isBotResult ? "text-red-600" : "text-green-600");
+
+      } catch (err) {
+        if(err.status==500){
+          setError("User not found. Please check the username and try again.");
+        }
+        else if(err.status==422){
+          setError("Not enough data to analyze this user.");
+        }
+        else{
+          setError("An error occurred. Please try again.");
+        }
+      } finally {
+        setLoadingStage(null);
+        setIsLoading(false);
       }
-
-      setResult(data);
-      
-      const prob = data.ml_prediction;
-      const isBotResult = prob > 0.5;
-
-      setIsBot(isBotResult);
-      setLabel(isBotResult ? "Bot Probability" : "Human Probability");
-      setPercentage(Math.round(prob * 100));
-      setLabelColor(isBotResult ? "text-red-600" : "text-green-600");
-      
-    } catch (err) {
-      setError("Network error. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
+    }, 3500);
   };
 
   const labelbgColorstart = isBot === null ? "bg-slate-100" : isBot ? "bg-red-50" : "bg-green-50";
@@ -70,25 +87,49 @@ export default function BotDetectorApp() {
       <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-xl border-b border-slate-200/50 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-gradient-to-br from-indigo-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
-              <ShieldCheck className="text-white" size={20} strokeWidth={2.5} />
+            <div className="w-12 h-12 bg-gradient-to-br rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+              <img
+                src="/images.png"
+                alt="Logo"
+                className="w-12 h-12 object-contain"
+              />
             </div>
-            <span className="font-black tracking-tight text-xl bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
-              Verify.ai
+
+            <span className="font-black tracking-tight text-xl bg-gradient-to-r from-[#1E88E5] to-[#42A5F5] bg-clip-text text-transparent
+ bg-clip-text text-transparent">
+              fine_tuned
             </span>
           </div>
+
         </div>
       </nav>
 
       <main className="pt-24 pb-20 px-6">
-        {!result ? (
+        {isLoading && loadingStage ? (
+          <div className="max-w-3xl mx-auto flex items-center justify-center min-h-[60vh]">
+            <div className="text-center space-y-6">
+              <div className="flex justify-center">
+                <Loader2 className="animate-spin text-indigo-600" size={48} />
+              </div>
+              <div>
+                <h2 className="text-3xl font-black text-slate-900 mb-2">
+                  {loadingStage === "profile" ? "Analysing Profile" : "Analysing Tweets"}
+                </h2>
+                <p className="text-slate-500 font-semibold">
+                  {loadingStage === "profile" ? "Gathering account information..." : "Processing tweet data..."}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : !result ? (
           <div className="max-w-3xl mx-auto">
             <div className="text-center space-y-6 mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full text-sm font-bold">
+              {/* <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full text-sm font-bold">
                 <Target size={16} /> <span>AI-Powered Bot Detection</span>
-              </div>
+              </div> */}
               <h1 className="text-6xl md:text-7xl font-black tracking-tighter">
-                Unmask the <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 bg-clip-text text-transparent">Bots.</span>
+                Unmask the <span className="bg-gradient-to-r from-[#1E88E5] to-[#42A5F5] bg-clip-text text-transparent
+ bg-clip-text text-transparent">Bots.</span>
               </h1>
               <p className="text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed font-medium">
                 Enterprise-grade behavioral analysis for social accounts. Detect automation and suspicious activity in seconds.
@@ -141,7 +182,7 @@ export default function BotDetectorApp() {
                     <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100 shrink-0 flex items-center justify-center">
                       {result.profile_url ? (
                         <img
-                          src={result.profile_url}
+                          src={result.profile_url || "/placeholder.svg"}
                           alt={result.username}
                           className="w-full h-full object-cover"
                           onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${result.username || 'U'}&background=4F46E5&color=fff`; }}
