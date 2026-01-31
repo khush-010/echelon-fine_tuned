@@ -1,16 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Loader2, TrendingUp, Users, Activity, AlertTriangle, ShieldCheck, Search, ArrowLeft, BarChart3, Globe, Target, Clock, MessageSquare, Eye, UserCheck, Heart, Repeat } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
+import { Loader2, TrendingUp, Users, Activity, AlertTriangle, ShieldCheck, Search, ArrowLeft, BarChart3, Globe, Target, Clock, MessageSquare, Eye, UserCheck, Heart, Repeat, Share2 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, PieChart, Pie, Legend } from 'recharts';
 
-function copyToClipboard(text) {
-  if (!text) return;
-  navigator.clipboard.writeText(JSON.stringify(text))
-    .then(() => { console.log("Copied to clipboard"); })
-    .catch(err => { console.error("Failed to copy:", err); });
-}
-
-export default function BotDetectorApp() {
+export default function HeroSection() {
   const [username, setUsername] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -20,6 +13,19 @@ export default function BotDetectorApp() {
   const [percentage, setPercentage] = useState(0);
   const [labelColor, setLabelColor] = useState("");
   const [loadingStage, setLoadingStage] = useState(null);
+  const [shapData, setShapData] = useState(null);
+  const [shapLoader, setShapLoader] = useState(false);
+
+  const fetchShapData = async () => {
+    const res= await fetch('http://localhost:8000/api/analyze-twitter/', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const data = await res.json();
+    setShapData(data);
+    // setShapLoader(false);
+  }
 
   const handleAnalyze = async () => {
     if (!username.trim()) return;
@@ -54,15 +60,16 @@ export default function BotDetectorApp() {
         setLabel(isBotResult ? "Bot Probability" : "Human Probability");
         setPercentage(isBotResult ? Math.round(prob * 100) : Math.round((1 - prob) * 100));
         setLabelColor(isBotResult ? "text-red-600" : "text-green-600");
-
+        // setShapLoader(true);
+        // await fetchShapData();
       } catch (err) {
-        if(err.status==500){
+        if (err.status == 500) {
           setError("User not found. Please check the username and try again.");
         }
-        else if(err.status==422){
+        else if (err.status == 422) {
           setError("Not enough data to analyze this user.");
         }
-        else{
+        else {
           setError("An error occurred. Please try again.");
         }
       } finally {
@@ -257,6 +264,47 @@ export default function BotDetectorApp() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white rounded-3xl border border-slate-200 shadow-xl p-8">
                 <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2">
+                    <Share2 size={20} className="text-indigo-600" />
+                    <h3 className="font-black text-lg">Interaction Network</h3>
+                  </div>
+                  <span className="text-xs font-bold text-slate-400 uppercase">Activity Split</span>
+                </div>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={result.network_graph.nodes.filter(n => n.id !== 'self')}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="count"
+                        nameKey="label"
+                      >
+                        {result.network_graph.nodes.filter(n => n.id !== 'self').map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={['#4F46E5', '#EC4899', '#10B981', '#F59E0B'][index % 4]}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: '16px',
+                          border: 'none',
+                          fontWeight: 'bold',
+                          boxShadow: '0 10px 40px rgba(0,0,0,0.1)'
+                        }}
+                      />
+                      <Legend verticalAlign="bottom" iconType="circle" />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-xl p-8">
+                <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-2"><Activity size={20} className="text-indigo-600" /><h3 className="font-black text-lg">Weekly Posting Volume</h3></div>
                 </div>
                 <div className="h-64">
@@ -354,7 +402,7 @@ export default function BotDetectorApp() {
               <div className="mt-6 p-5 bg-white rounded-2xl border-2 border-amber-200">
                 <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                   <AlertTriangle size={16} className="text-amber-600" />
-                  <span><strong>AI Verdict:</strong> This account has a {Math.round(result.fake_probability * 100)}% bot probability. Engagement rate is {result.visual_metrics.engagement_rate_impressions < 0.003 ? "lower" : "consistent"} than expected for this audience size.</span>
+                  <span><strong>AI Verdict:</strong> This account has a {Math.round(result.fake_probability * 100)}% bot probability. Engagement rate is {shapData.visual_metrics.engagement_rate_impressions < 0.003 ? "lower" : "consistent"} than expected for this audience size.</span>
                 </p>
               </div>
             </div>

@@ -10,6 +10,8 @@ import pickle
 import numpy as np
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+import shap
+from server.shap_analysis import predict_with_shap
 
 from .services.twitter_service import (
     fetch_twitter_user,
@@ -25,6 +27,23 @@ USE_SIMULATION = False
 
 
 class AnalyzeTwitterView(APIView):
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        parent_dir = os.path.dirname(settings.BASE_DIR)
+        self.tweet_model = load_model(os.path.join(parent_dir, "fake_account_model.h5"))
+        file_path = os.path.join(parent_dir, "shape_background.npy")
+        background = np.load(file_path)
+        self.explainer = shap.KernelExplainer(self.shap_predict_fn, background)
+        self.tokenizer = pickle.load(open(os.path.join(parent_dir, "tokenizer.pickle"), "rb"))
+        self.scaler = pickle.load(open(os.path.join(parent_dir, "scaler.pickle"), "rb"))
+        
+    def shap_predict_fn(self, X):
+        max_len = self.tweet_model.input[0].shape[1]
+        X_text = X[:, :max_len].astype(int)
+        X_num  = X[:, max_len:]
+        return self.tweet_model.predict([X_text, X_num])
+
 
     def tweet_prediction(self, cleaned_tweets_data, tokenizer, scaler, tweet_model, max_len):
         total = 0
@@ -158,6 +177,10 @@ class AnalyzeTwitterView(APIView):
         cleaned_tweets_data = clean_tweets_api_response(
             tweets_api_response
         )
+        curr_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        with open(os.path.join(curr_dir, "latest.json"), 'w') as f:
+            json.dump(cleaned_tweets_data, f)
 
         parent_dir = os.path.dirname(settings.BASE_DIR)
 
@@ -169,35 +192,40 @@ class AnalyzeTwitterView(APIView):
         )[0][0]
         print("Profile Prediction Model",profile_prediction )  
         profile_prediction=1-profile_prediction         
-        tweet_model = load_model(
-            os.path.join(parent_dir, "fake_account_model.h5")
-        )
+        
 
-        tokenizer = pickle.load(
-            open(os.path.join(parent_dir, "tokenizer.pickle"), "rb")
-        )
-
-        scaler = pickle.load(
-            open(os.path.join(parent_dir, "scaler.pickle"), "rb")
-        )
-
-        max_len = tweet_model.input[0].shape[1]
+        max_len = self.tweet_model.input[0].shape[1]
 
         tweet_prediction = self.tweet_prediction(
             cleaned_tweets_data,
-            tokenizer,
-            scaler,
-            tweet_model,
+            self.tokenizer,
+            self.scaler,
+            self.tweet_model,
             max_len
         )
         print("Tweet Prediction Model",tweet_prediction )
         # tweet_prediction = 1 - tweet_prediction
-
+        
         dashboard_data["ml_prediction"] = (
             0.4*profile_prediction + 0.6*tweet_prediction
         ) 
         print("Final Prediction",dashboard_data["ml_prediction"] )
         return Response(dashboard_data, status=status.HTTP_200_OK)
+
+    def get(self, request):
+    
+        parent_dir = os.path.dirname(settings.BASE_DIR)
+        file_path = os.path.join(parent_dir, "shape_background.npy")
+        background = np.load(file_path)
+        curr_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        with open(os.path.join(curr_dir, "latest.json")) as f:
+            cleaned_tweets_data = json.load(f)
+    
+        max_len = self.tweet_model.input[0].shape[1]
+        shap_response = predict_with_shap(0, cleaned_tweets_data, self.scaler, self.tokenizer, self.tweet_model, self.explainer, max_len)
+        
+        return Response(shap_response, status=status.HTTP_200_OK)
 
 
 class GetGraphView(APIView):
