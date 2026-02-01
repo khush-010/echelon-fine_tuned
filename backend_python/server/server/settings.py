@@ -125,5 +125,5 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-RAPIDAPI_KEY = "6e5fec4f5amsh6b66217dc6c931bp12196djsn6aa3f1cb0a64"
-RAPIDAPI_HOST = "twitter241.p.rapidapi.com"
+RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
+RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
