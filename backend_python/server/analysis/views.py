@@ -22,7 +22,7 @@ from .services.twitter_service import (
 )
 from .services.aggregation import aggregate_twitter_data
 
-from services.network_graph import build_follower_graph
+from .services.network_graph import build_follower_graph
 USE_SIMULATION = False
 
 
@@ -205,7 +205,8 @@ class AnalyzeTwitterView(APIView):
         )
         print("Tweet Prediction Model",tweet_prediction )
         # tweet_prediction = 1 - tweet_prediction
-        
+        dashboard_data['user_id']=user_id
+        dashboard_data['username']=username
         dashboard_data["ml_prediction"] = (
             0.4*profile_prediction + 0.6*tweet_prediction
         ) 
@@ -230,7 +231,21 @@ class AnalyzeTwitterView(APIView):
 
 class GetGraphView(APIView):
     def post(self, request):
-        user_id=request.get("user_id")
-        user_name=request.get("user_name")
-        response=get_followers_username(user_id)
+        user_id = request.data.get("user_id")
+        user_name = request.data.get("user_name")
+        print("User ID:", user_id)
+        print("User Name:", user_name)
+        if not user_id or not user_name:
+            return Response(
+                {"error": "user_id and user_name are required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        response = get_followers_username(user_id)
+        
+        # Check if get_followers_username returned None or empty
+        if response is None:
+            return Response(
+                {"error": "Could not fetch followers"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
         return build_follower_graph(response,user_name)

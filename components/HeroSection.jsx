@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import { Loader2, TrendingUp, Users, Activity, AlertTriangle, ShieldCheck, Search, ArrowLeft, BarChart3, Globe, Target, Clock, MessageSquare, Eye, UserCheck, Heart, Repeat, Share2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, PieChart, Pie, Legend } from 'recharts';
+import FollowerNetwork from "../components/NetworkData";
 
 export default function HeroSection() {
   const [username, setUsername] = useState("");
@@ -14,18 +15,52 @@ export default function HeroSection() {
   const [labelColor, setLabelColor] = useState("");
   const [loadingStage, setLoadingStage] = useState(null);
   const [shapData, setShapData] = useState(null);
-  const [shapLoader, setShapLoader] = useState(false);
-
+  const [shapLoading, setShapLoading] = useState(false);
+  const [shapError, setShapError] = useState("");
+  let user_id = result ? result.user_id : null;
+  const [networkLoading, setNetworkLoading] = useState(false);
+  const [networkError, setNetworkError] = useState("");
+  const [networkData, setNetworkData] = useState(null);
   const fetchShapData = async () => {
-    const res= await fetch('http://localhost:8000/api/analyze-twitter/', {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+    try {
+      setShapLoading(true);
+
+      const res = await fetch("http://localhost:8000/api/analyze-twitter/", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!res.ok) throw new Error("SHAP fetch failed");
+
+      const data = await res.json();
+      console.log("SHAP Data:", data);
+      setShapData(data);
+    } catch (err) {
+      setShapError(err.message);
+    } finally {
+      setShapLoading(false);
+    }
+  };
+
+  const fetchNetworkGraphData = async (user_id, user_name) => {
+    setNetworkLoading(true);
+    try {
+    const res = await fetch("http://localhost:8000/api/get-graph/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id, user_name }), 
     });
 
+    if (!res.ok) throw new Error("Network graph fetch failed");
     const data = await res.json();
-    setShapData(data);
-    // setShapLoader(false);
-  }
+    console.log("Network Graph Data:", data);
+    setNetworkData(data);
+    setNetworkLoading(false);
+    } catch (err) {
+      console.error("Error fetching network graph data:", err);
+      return null;
+    }
+  };
 
   const handleAnalyze = async () => {
     if (!username.trim()) return;
@@ -43,7 +78,7 @@ export default function HeroSection() {
         });
 
         const data = await res.json();
-
+        console.log("Analysis Result:", data);
         if (!res.ok) {
           setError(data.error || "Analysis failed.");
           setLoadingStage(null);
@@ -52,7 +87,7 @@ export default function HeroSection() {
         }
 
         setResult(data);
-
+        setUsername(data.username);
         const prob = data.ml_prediction;
         const isBotResult = prob >= 0.5;
 
@@ -60,8 +95,58 @@ export default function HeroSection() {
         setLabel(isBotResult ? "Bot Probability" : "Human Probability");
         setPercentage(isBotResult ? Math.round(prob * 100) : Math.round((1 - prob) * 100));
         setLabelColor(isBotResult ? "text-red-600" : "text-green-600");
-        // setShapLoader(true);
-        // await fetchShapData();
+        // setShapLoading(true);
+        fetchShapData();
+        // fetchNetworkGraphData(user_id,data.username);
+        // const mockData = {
+        //   "prediction": "HUMAN",
+        //   "confidence": 0.003576811868697405,
+        //   "text_explanation": [
+        //     {
+        //       "word": "rt",
+        //       "importance": 0.0
+        //     },
+        //     {
+        //       "word": "<OOV>",
+        //       "importance": 0.0
+        //     },
+        //     {
+        //       "word": "nobody",
+        //       "importance": 0.0
+        //     },
+        //     {
+        //       "word": "saw",
+        //       "importance": 0.0
+        //     },
+        //     {
+        //       "word": "me",
+        //       "importance": 0.0
+        //     }
+        //   ],
+        //   "numeric_explanation": [
+        //     {
+        //       "feature": "retweet_count",
+        //       "importance": 0.0
+        //     },
+        //     {
+        //       "feature": "reply_count",
+        //       "importance": 0.0
+        //     },
+        //     {
+        //       "feature": "favorite_count",
+        //       "importance": 0.0
+        //     },
+        //     {
+        //       "feature": "num_hashtags",
+        //       "importance": 0.0
+        //     },
+        //     {
+        //       "feature": "num_urls",
+        //       "importance": 0.0
+        //     }
+        //   ]
+        // }
+        // setShapData(mockData);
       } catch (err) {
         if (err.status == 500) {
           setError("User not found. Please check the username and try again.");
@@ -88,6 +173,12 @@ export default function HeroSection() {
     setUsername("");
     setError("");
   };
+
+  useEffect(() => {
+    if (!result) return;
+    user_id = result.user_id;
+    fetchNetworkGraphData(user_id,result.username);
+  }, [result]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-slate-900 font-sans">
@@ -380,32 +471,62 @@ export default function HeroSection() {
                   </ResponsiveContainer>
                 </div>
               </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-red-50 to-orange-50 border-2 border-red-200 rounded-3xl p-8 shadow-xl">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
-                  <AlertTriangle size={20} className="text-red-600" />
+              {networkLoading && (
+                <div className="mt-6 flex items-center justify-center gap-3 text-sm text-slate-600">
+                  <Loader2 className="animate-spin" size={18} />
+                  <span>Analyzing behavioral signals…</span>
                 </div>
-                <h3 className="font-black text-xl text-red-900">Anomalies Detected</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {result.signals.map((signal, i) => (
-                  <div key={i} className="flex items-start gap-3 bg-white p-5 rounded-2xl border-2 border-red-100 shadow-sm">
-                    <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center shrink-0">
-                      <Eye size={16} className="text-amber-600" />
-                    </div>
-                    <div><span className="text-sm font-bold text-slate-800 leading-relaxed">{signal}</span></div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-6 p-5 bg-white rounded-2xl border-2 border-amber-200">
-                <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <AlertTriangle size={16} className="text-amber-600" />
-                  <span><strong>AI Verdict:</strong> This account has a {Math.round(result.fake_probability * 100)}% bot probability. Engagement rate is {shapData.visual_metrics.engagement_rate_impressions < 0.003 ? "lower" : "consistent"} than expected for this audience size.</span>
-                </p>
-              </div>
+              )}
+
+              {networkData && <FollowerNetwork data={networkData} />}
+
             </div>
+            {shapLoading && (
+              <div className="mt-6 flex items-center justify-center gap-3 text-sm text-slate-600">
+                <Loader2 className="animate-spin" size={18} />
+                <span>Analyzing behavioral signals…</span>
+              </div>
+            )}
+            {shapData && !shapLoading && (
+              <div className="bg-gradient-to-br from-red-50 to-orange-50 border-2 border-red-200 rounded-3xl p-8 shadow-xl mt-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
+                    <AlertTriangle size={20} className="text-red-600" />
+                  </div>
+                  <h3 className="font-black text-xl text-red-900">
+                    Anomalies Detected
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {shapData.text_explanation.map((item, i) => (
+                    <div
+                      key={i}
+                      className="flex items-start gap-3 bg-white p-5 rounded-2xl border-2 border-red-100 shadow-sm"
+                    >
+                      <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center shrink-0">
+                        <Eye size={16} className="text-amber-600" />
+                      </div>
+                      <div className="text-sm font-bold text-slate-800">
+                        {item.word} influenced prediction (
+                        {item.importance.toFixed(3)})
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-6 p-5 bg-white rounded-2xl border-2 border-amber-200">
+                  <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <AlertTriangle size={16} className="text-amber-600" />
+                    <span>
+                      <strong>AI Verdict:</strong> This account has a{" "}
+                      {Math.round(shapData.confidence * 100)}% bot probability.
+                    </span>
+                  </p>
+                </div>
+              </div>
+            )}
+
           </div>
         )}
       </main>
