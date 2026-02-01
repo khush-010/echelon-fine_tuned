@@ -12,6 +12,7 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 import shap
 from server.shap_analysis import predict_with_shap
+import time
 
 from .services.twitter_service import (
     fetch_twitter_user,
@@ -33,6 +34,11 @@ class AnalyzeTwitterView(APIView):
         self.tweet_model = load_model(os.path.join(parent_dir, "fake_account_model.h5"))
         file_path = os.path.join(parent_dir, "shape_background.npy")
         background = np.load(file_path)
+        # print("shape",background.shape)
+        background = background[np.random.choice(
+            background.shape[0], 15, replace=False
+        )]
+
         self.explainer = shap.KernelExplainer(self.shap_predict_fn, background)
         self.tokenizer = pickle.load(open(os.path.join(parent_dir, "tokenizer.pickle"), "rb"))
         self.scaler = pickle.load(open(os.path.join(parent_dir, "scaler.pickle"), "rb"))
@@ -213,15 +219,16 @@ class AnalyzeTwitterView(APIView):
 
     def get(self, request):
     
-        parent_dir = os.path.dirname(settings.BASE_DIR)
-        file_path = os.path.join(parent_dir, "shape_background.npy")
-        background = np.load(file_path)
+        # parent_dir = os.path.dirname(settings.BASE_DIR)
+        # file_path = os.path.join(parent_dir, "shape_background.npy")
+        # background = np.load(file_path)
         curr_dir = os.path.dirname(os.path.abspath(__file__))
         
         with open(os.path.join(curr_dir, "latest.json")) as f:
             cleaned_tweets_data = json.load(f)
     
         max_len = self.tweet_model.input[0].shape[1]
+        # sttime=time.time()
         shap_response = predict_with_shap(0, cleaned_tweets_data, self.scaler, self.tokenizer, self.tweet_model, self.explainer, max_len)
-        
+        # print("Time taken for SHAP:", time.time() - sttime)
         return Response(shap_response, status=status.HTTP_200_OK)
