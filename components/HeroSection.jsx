@@ -470,18 +470,9 @@ export default function HeroSection() {
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
+
               </div>
-              {networkLoading && (
-                <div className="mt-6 flex items-center justify-center gap-3 text-sm text-slate-600">
-                  <Loader2 className="animate-spin" size={18} />
-                  <span>Analyzing behavioral signals…</span>
-                </div>
-              )}
-
-              {networkData && <FollowerNetwork data={networkData} />}
-
-            </div>
-            {shapLoading && (
+                {shapLoading && (
               <div className="mt-6 flex items-center justify-center gap-3 text-sm text-slate-600">
                 <Loader2 className="animate-spin" size={18} />
                 <span>Analyzing behavioral signals…</span>
@@ -526,7 +517,17 @@ export default function HeroSection() {
                 </div>
               </div>
             )}
+              {networkLoading && (
+                <div className="mt-6 flex items-center justify-center gap-3 text-sm text-slate-600">
+                  <Loader2 className="animate-spin" size={18} />
+                  <span>Analyzing behavioral signals…</span>
+                </div>
+              )}
 
+              {networkData && <FollowerNetwork data={networkData} />}
+
+            </div>
+            
           </div>
         )}
       </main>
